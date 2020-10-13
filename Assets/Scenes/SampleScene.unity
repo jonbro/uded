@@ -327,6 +327,53 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 951e32c8053d4c54aa455f845e1e9fb2, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  DefaultMat: {fileID: 2100000, guid: fb50df3b69de5b74f96e207049f07301, type: 2}
+  Vertexes:
+  - _value: {x: 0, y: 0}
+  - _value: {x: 2, y: 0}
+  - _value: {x: 2, y: 2}
+  - _value: {x: 0, y: 2}
+  Edges:
+  - origin:
+      _value: {x: 0, y: 0}
+    twinId: 1
+    nextId: 2
+    prevId: 6
+  - origin:
+      _value: {x: 2, y: 0}
+    twinId: 0
+    nextId: 7
+    prevId: 3
+  - origin:
+      _value: {x: 2, y: 0}
+    twinId: 3
+    nextId: 4
+    prevId: 0
+  - origin:
+      _value: {x: 2, y: 2}
+    twinId: 2
+    nextId: 1
+    prevId: 5
+  - origin:
+      _value: {x: 2, y: 2}
+    twinId: 5
+    nextId: 6
+    prevId: 2
+  - origin:
+      _value: {x: 0, y: 2}
+    twinId: 4
+    nextId: 3
+    prevId: 7
+  - origin:
+      _value: {x: 0, y: 2}
+    twinId: 7
+    nextId: 0
+    prevId: 4
+  - origin:
+      _value: {x: 0, y: 0}
+    twinId: 6
+    nextId: 5
+    prevId: 1
 --- !u!4 &1407777258
 Transform:
   m_ObjectHideFlags: 0

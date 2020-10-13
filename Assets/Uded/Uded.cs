@@ -1,5 +1,11 @@
-﻿using System;
-using System.Collections;
+/*
+ * todo
+ * - faces inside faces
+ * - edge splitting
+ * - switch to indexes
+ * - organize code to be usable
+ */
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
@@ -7,6 +13,12 @@ using UnityEngine;
 [ExecuteInEditMode]
 public class Uded : MonoBehaviour
 {
+    public Material DefaultMat;
+    public class Face
+    {
+        public List<HalfEdge> Edges = new List<HalfEdge>();
+        public bool clockwise;
+    }
     [Serializable]
     /// <summary>
     /// wrapper class for vector2 so we can store refs
@@ -18,7 +30,7 @@ public class Uded : MonoBehaviour
         public static implicit operator Vector3(Vertex v) => new Vector3(v._value.x, 0, v._value.y);
         public Vertex(Vector2 v)
         {
-            this._value = v;
+            _value = v;
         }
         public static implicit operator Vertex(Vector2 value)
         {
@@ -27,12 +39,22 @@ public class Uded : MonoBehaviour
 
         public bool Equals(Vertex b)
         {
-            return this._value == b._value;
+            return _value == b._value;
+        }
+        public float x
+        {
+            get => _value.x;
+            set => _value.x = value;
+        }
+        public float y
+        {
+            get => _value.y;
+            set => _value.y = value;
         }
     }
     public List<Vertex> Vertexes;
     public List<HalfEdge> Edges;
-    
+    public List<Face> Faces;
     [Serializable]
     public class HalfEdge
     {
@@ -51,6 +73,7 @@ public class Uded : MonoBehaviour
     {
         Vertexes = new List<Vertex>();
         Edges = new List<HalfEdge>();
+        Faces = new List<Face>();
         AddLine (0, 0, 2, 0);
         AddLine (2, 0, 2, 2);
         AddLine (2, 2, 0, 2);
@@ -58,29 +81,44 @@ public class Uded : MonoBehaviour
         // find how many sectors we have
         HashSet<HalfEdge> unvisitedEdges = new HashSet<HalfEdge>(Edges);
         int faceCount = 0;
-        int breakcount = 100;
-        while (unvisitedEdges.Count > 0 && breakcount > 0)
+        while (unvisitedEdges.Count > 0)
         {
-            breakcount--;
             var nextEdge = unvisitedEdges.ElementAt(0);
             var firstEdge = nextEdge;
             unvisitedEdges.Remove(nextEdge);
+            var face = new Face();
+            Faces.Add(face);
+            var sideSum = 0f; 
             while (nextEdge != null)
             {
+                face.Edges.Add(nextEdge);
+                var last = nextEdge;
                 nextEdge = nextEdge.next;
+                if(nextEdge!=null)
+                    sideSum += (nextEdge.origin.x - last.origin.x) * (nextEdge.origin.y + last.origin.y);
                 if (!unvisitedEdges.Contains(nextEdge))
                 {
-                    Debug.Log("used up edges");
                     if (firstEdge == nextEdge)
+                    {
+                        sideSum += (firstEdge.origin.x - nextEdge.origin.x) * (firstEdge.origin.y + nextEdge.origin.y);
+                        face.clockwise = sideSum > 0;
                         faceCount++;
+                    }
                     nextEdge = null;
                     continue;
                 }
                 unvisitedEdges.Remove(nextEdge);
             }
         }
-        //angle = Mathf.Atan2(vector2.y, vector2.x) - atan2(vector1.y, vector1.x);
-        Debug.Log("facecount: " + faceCount + " edgecount: " + Edges.Count);
+
+        foreach (var face in Faces)
+        {
+            if(face.clockwise)
+                continue;
+            var go = new GameObject();
+            go.AddComponent<MeshFilter>().sharedMesh = PolyToMesh.GetMeshFromFace(face);
+            go.AddComponent<MeshRenderer>().sharedMaterials = new[] {DefaultMat, DefaultMat};
+        }
         foreach (var edge in Edges)
         {
             int i = 0;
@@ -100,7 +138,6 @@ public class Uded : MonoBehaviour
     private Vertex AddOrFindVert(Vertex newVert)
     {
         // detemine if these verts already exist
-        Vertex currentVert = null;
         for (int i = 0; i < Vertexes.Count; i++)
         {
             var vert = Vertexes[i];
@@ -113,13 +150,11 @@ public class Uded : MonoBehaviour
         return newVert;
     }
 
-    private float AngleBetweenTwoVectors(Vector2 mid, Vector2 left, Vector2 right)
+    private static float AngleBetweenTwoVectors(Vector2 mid, Vector2 left, Vector2 right)
     {
-        Debug.Log(mid + " " + left + " " + right);
         left = (left - mid).normalized;
         right = (right - mid).normalized;
         var angle = Mathf.Atan2(left.y, left.x) - Mathf.Atan2(-right.y, -right.x);
-        // if (angle < 0) { angle += 2 * Mathf.PI; }
         if (angle > Mathf.PI)        { angle -= 2 * Mathf.PI; }
         else if (angle <= -Mathf.PI) { angle += 2 * Mathf.PI; }
         return angle;
@@ -179,7 +214,6 @@ public class Uded : MonoBehaviour
     }
     private void AddLine(float ax, float ay, float bx, float by)
     {
-        Debug.Log("adding line");
         Vertex a = new Vector2(ax, ay);
         Vertex b = new Vector2(bx, by);
         if (a.Equals(b))
