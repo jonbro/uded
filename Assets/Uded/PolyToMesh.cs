@@ -9,7 +9,7 @@ public class PolyToMesh
 {
 	private float multiplier = 10000;
 
-	public static Mesh GetMeshFromFace(Uded.Face face)
+	public static Mesh GetMeshFromFace(Uded.Face face, List<Uded.HalfEdge> edges)
 	{
 		TriangleNet.Mesh tmesh = new TriangleNet.Mesh();
 
@@ -19,18 +19,22 @@ public class PolyToMesh
 		int startIndexMark = input.Count;
 		int indexMarker = startIndexMark;
 		int EdgeMarker = indexMarker;
-		List<Uded.HalfEdge> edges = face.Edges;
-		if (edges.Count == 0)
+		List<Uded.HalfEdge> faceEdges = new List<Uded.HalfEdge>();
+		for (int edgeIndex = 0; edgeIndex < face.Edges.Count; edgeIndex++)
+		{
+			faceEdges.Add(edges[edgeIndex]);
+		}
+		if (faceEdges.Count == 0)
 			return new Mesh();
-		if (edges.Count > 0)
+		if (faceEdges.Count > 0)
 		{
 			float avgX = 0;
 			float avgY = 0;
-			foreach (Uded.HalfEdge edge in edges)
+			foreach (Uded.HalfEdge edge in faceEdges)
 			{
 				Vector2 nextPoint = edge.origin;
 				input.AddPoint(nextPoint.x, nextPoint.y, EdgeMarker);
-				input.AddSegment(indexMarker, ((indexMarker - startIndexMark + 1) % edges.Count + startIndexMark),
+				input.AddSegment(indexMarker, ((indexMarker - startIndexMark + 1) % faceEdges.Count + startIndexMark),
 					EdgeMarker);
 				indexMarker++;
 			}
