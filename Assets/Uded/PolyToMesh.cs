@@ -9,8 +9,9 @@ public class PolyToMesh
 {
 	private float multiplier = 10000;
 
-	public static Mesh GetMeshFromFace(Uded.Face face, List<Uded.HalfEdge> edges)
+	public static Mesh GetMeshFromFace(int faceIndex, List<Uded.HalfEdge> edges, List<Uded.Face> faces)
 	{
+		var face = faces[faceIndex];
 		TriangleNet.Mesh tmesh = new TriangleNet.Mesh();
 
 		InputGeometry input = new InputGeometry();
@@ -19,61 +20,45 @@ public class PolyToMesh
 		int startIndexMark = input.Count;
 		int indexMarker = startIndexMark;
 		int EdgeMarker = indexMarker;
-		List<Uded.HalfEdge> faceEdges = new List<Uded.HalfEdge>();
+		if (face.Edges.Count == 0)
+			return new Mesh();
 		for (int edgeIndex = 0; edgeIndex < face.Edges.Count; edgeIndex++)
 		{
-			faceEdges.Add(edges[edgeIndex]);
+			var edge = edges[face.Edges[edgeIndex]];
+			Vector2 nextPoint = edge.origin;
+			input.AddPoint(nextPoint.x, nextPoint.y, EdgeMarker);
+			input.AddSegment(indexMarker, ((indexMarker - startIndexMark + 1) % face.Edges.Count + startIndexMark),
+				EdgeMarker);
+			indexMarker++;
 		}
-		if (faceEdges.Count == 0)
-			return new Mesh();
-		if (faceEdges.Count > 0)
+
+		//for (int i = face.InteriorFaces.Count-1; i >= 0; i--)
+		for (int i = 0; i < face.InteriorFaces.Count; i++)
 		{
+			var interiorFace = faces[face.InteriorFaces[i]];
+			startIndexMark = input.Count;
 			float avgX = 0;
 			float avgY = 0;
-			foreach (Uded.HalfEdge edge in faceEdges)
+			EdgeMarker++;
+			for (int edgeIndex = 0; edgeIndex < interiorFace.Edges.Count; edgeIndex++)
 			{
-				Vector2 nextPoint = edge.origin;
+				var interiorEdge = edges[interiorFace.Edges[edgeIndex]];
+				Vector2 nextPoint = interiorEdge.origin;
 				input.AddPoint(nextPoint.x, nextPoint.y, EdgeMarker);
-				input.AddSegment(indexMarker, ((indexMarker - startIndexMark + 1) % faceEdges.Count + startIndexMark),
+				avgX += nextPoint.x;
+				avgY += nextPoint.y;
+				var p1 = ((indexMarker - startIndexMark + 1) % interiorFace.Edges.Count + startIndexMark);
+				input.AddSegment(indexMarker, p1,
 					EdgeMarker);
 				indexMarker++;
 			}
+			avgX = avgX / interiorFace.Edges.Count;
+			avgY = avgY / interiorFace.Edges.Count;
+			// TODO: should use the first triangle within the interior face to define the hole position
+			// this can miss for shapes with concavities 
+			input.AddHole(avgX, avgY);
 		}
 
-		/**/
-		// List<Sector.SideGroup> innerGroups = sector.GetInnerGroups();
-		// if (innerGroups.Count > 0)
-		// {
-		// 	// cut the holes based on the subsectors
-		// 	foreach (Sector.SideGroup innerGroup in innerGroups)
-		// 	{
-		// 		EdgeMarker++;
-		// 		startIndexMark = input.Count;
-		// 		float avgX = 0;
-		// 		float avgY = 0;
-		// 		foreach (SideDef sd in innerGroup.sides)
-		// 		{
-		// 			int nextMarker = ((indexMarker - startIndexMark + 1) % innerGroup.sides.Count + startIndexMark);
-		// 			Vector2 nextPoint = sd.line.start.Vector;
-		// 			// flip this based on line sidedness
-		// 			if (sd.line.front != sd)
-		// 			{
-		// 				nextPoint = sd.line.end.Vector;
-		// 			}
-		//
-		// 			input.AddPoint(nextPoint.x, nextPoint.y, EdgeMarker);
-		// 			input.AddSegment(indexMarker,
-		// 				((indexMarker - startIndexMark + 1) % innerGroup.sides.Count + startIndexMark), EdgeMarker);
-		// 			avgX += sd.line.start.Vector.x;
-		// 			avgY += sd.line.start.Vector.y;
-		// 			indexMarker++;
-		// 		}
-		//
-		// 		avgX = avgX / innerGroup.sides.Count;
-		// 		avgY = avgY / innerGroup.sides.Count;
-		// 		input.AddHole(avgX, avgY);
-		// 	}
-		// }
 
 		tmesh.Triangulate(input);
 

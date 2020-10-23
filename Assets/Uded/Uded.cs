@@ -1,9 +1,10 @@
 /*
  * todo
- * - faces inside faces
  * - edge splitting
- * - switch to indexes
+ * - switch half edge to use indexes
+ * - switch 
  * - organize code to be usable
+ * - faces are sectors (materials & heights)
  */
 using System;
 using System.Collections.Generic;
@@ -19,6 +20,7 @@ public class Uded : MonoBehaviour
     {
         public List<int> Edges = new List<int>();
         public bool clockwise;
+        public List<int> InteriorFaces = new List<int>();
     }
 
     [Serializable]
@@ -210,12 +212,23 @@ public class Uded : MonoBehaviour
                         lowestValue = potentialContainer.Value.Item2;
                     }
                 }
-                Debug.Log(testingFaceIndex + " is contained by : " + containingFace);
+
+                if (containingFace >= 0)
+                {
+                    Debug.Log(testingFaceIndex + " contained by: " + containingFace);
+                    Faces[containingFace].InteriorFaces.Add(testingFaceIndex);
+                }
+            }
+        }
+
+        for (int i = 0; i < Faces.Count; i++)
+        {
+            if (Faces[i].clockwise)
+            {
                 continue;
             }
-                
             var go = new GameObject();
-            go.AddComponent<MeshFilter>().sharedMesh = PolyToMesh.GetMeshFromFace(face, Edges);
+            go.AddComponent<MeshFilter>().sharedMesh = PolyToMesh.GetMeshFromFace(i, Edges, Faces);
             go.AddComponent<MeshRenderer>().sharedMaterials = new[] {DefaultMat, DefaultMat};
         }
 
