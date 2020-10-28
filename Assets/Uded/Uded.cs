@@ -68,7 +68,7 @@ public class Uded : MonoBehaviour
     public List<Vertex> Vertexes;
     public List<HalfEdge> Edges;
     public List<Face> Faces;
-
+    private List<GameObject> childObjects = new List<GameObject>();
     [Serializable]
     public class HalfEdge
     {
@@ -90,11 +90,32 @@ public class Uded : MonoBehaviour
         Vertexes = new List<Vertex>();
         Edges = new List<HalfEdge>();
         Faces = new List<Face>();
+        AddLine(new Vertex(0,-1), new Vertex(0, 1));
+        AddLine(new Vertex(-1,0), new Vertex(1, 0));
+        // AddRect(new Vertex(-1, -1), new Vertex(3, -1), new Vertex(3, 3), new Vertex(-1, 3));
+        // AddRect(new Vertex(0, 0), new Vertex(2, 0), new Vertex(2, 2), new Vertex(0, 2));
+        foreach (var edge in Edges)
+        {
+            int i = 0;
+            foreach (var edge2 in Edges)
+            {
+                if (edge.next == edge2)
+                    edge.nextId = i;
+                if (edge.prev == edge2)
+                    edge.prevId = i;
+                if (edge.twin == edge2)
+                    edge.twinId = i;
+                i++;
+            }
+        }
 
-        AddRect(new Vertex(-1, -1), new Vertex(3,-1), new Vertex(3,3), new Vertex(-1,3));
-        AddRect(new Vertex(0,0), new Vertex(2,0), new Vertex(2,2), new Vertex(0,2));
-
-        // add another face
+    }
+    public void Rebuild()
+    {
+        foreach (var childObject in childObjects)
+        {
+            Destroy(childObject);
+        }
 
         // find how many sectors we have
         HashSet<HalfEdge> unvisitedEdges = new HashSet<HalfEdge>(Edges);
@@ -215,12 +236,10 @@ public class Uded : MonoBehaviour
 
                 if (containingFace >= 0)
                 {
-                    Debug.Log(testingFaceIndex + " contained by: " + containingFace);
                     Faces[containingFace].InteriorFaces.Add(testingFaceIndex);
                 }
             }
         }
-
         for (int i = 0; i < Faces.Count; i++)
         {
             if (Faces[i].clockwise)
@@ -228,8 +247,10 @@ public class Uded : MonoBehaviour
                 continue;
             }
             var go = new GameObject();
+            go.transform.SetParent(transform);
             go.AddComponent<MeshFilter>().sharedMesh = PolyToMesh.GetMeshFromFace(i, Edges, Faces);
             go.AddComponent<MeshRenderer>().sharedMaterials = new[] {DefaultMat, DefaultMat};
+            childObjects.Add(go);
         }
 
     }
@@ -272,6 +293,43 @@ public class Uded : MonoBehaviour
             return t1;
 
         return null;
+    }
+
+    public static bool LineLineIntersection(Vector2 a1, Vector2 a2, Vector2 b1, Vector2 b2, out Vector2 intersectionPoint)
+    {
+        // init out var
+        intersectionPoint = Vector2.zero;
+        float p0_x = a1.x;
+        float p0_y = a1.y;
+        float p1_x = a2.x;
+        float p1_y = a2.y;
+
+        float p2_x = b1.x;
+        float p2_y = b1.y;
+        float p3_x = b2.x;
+        float p3_y = b2.y;
+        // ignore intersections at the endpoints
+        if (
+            a1.Equals(b1) ||
+            a1.Equals(b2) ||
+            a2.Equals(b1) ||
+            a2.Equals(b2))
+            return false;
+        float s1_x, s1_y, s2_x, s2_y;
+        s1_x = p1_x - p0_x;     s1_y = p1_y - p0_y;
+        s2_x = p3_x - p2_x;     s2_y = p3_y - p2_y;
+
+        float s, t;
+        s = (-s1_y * (p0_x - p2_x) + s1_x * (p0_y - p2_y)) / (-s2_x * s1_y + s1_x * s2_y);
+        t = ( s2_x * (p0_y - p2_y) - s2_y * (p0_x - p2_x)) / (-s2_x * s1_y + s1_x * s2_y);
+
+        if (s >= 0 && s <= 1 && t >= 0 && t <= 1)
+        {
+            // Collision detected
+            intersectionPoint = Vector2.Lerp(a1, a2, t);
+            return true;
+        }
+        return false;
     }
     private static float AngleBetweenTwoVectors(Vector2 mid, Vector2 left, Vector2 right)
     {
@@ -343,7 +401,7 @@ public class Uded : MonoBehaviour
         return false;
     }
 
-    private void AddRect(Vertex a, Vertex b, Vertex c, Vertex d)
+    public void AddRect(Vertex a, Vertex b, Vertex c, Vertex d)
     {
         AddLine(a, b);
         AddLine(b, c);
@@ -351,11 +409,50 @@ public class Uded : MonoBehaviour
         AddLine(d, a);
     }
 
-    private void AddLine(Vertex a, Vertex b)
+    private void SplitEdge(HalfEdge edge, Vertex splitPoint)
+    {
+        var c = AddOrFindVert(splitPoint);
+        var edgePair = edge.twin;
+        var b = edgePair.origin;
+        HalfEdge ctob = new HalfEdge
+        {
+            origin = c,
+            prev = edge
+        };
+        edge.next = ctob;
+        ctob.next = ctob.twin = new HalfEdge
+        {
+            origin = b,
+            twin = ctob,
+            next = edgePair,
+            prev = edgePair.prev
+        };
+        
+        edgePair.prev = ctob.twin;
+        edgePair.origin = c;
+        Edges.Add(ctob);
+        Edges.Add(ctob.twin);
+    }
+
+    public void AddLine(Vertex a, Vertex b, int edgeSearchOffset = 0)
     {
         if (a.Equals(b))
         {
             return;
+        }
+        // test to see if this line causes any existing lines to be split
+        // only do half of the edges
+        for (int i = edgeSearchOffset; i < Edges.Count; i+=2)
+        {
+            var edge = Edges[i];
+            Vector2 intersectionPoint;
+            if (LineLineIntersection(a, b, edge.origin, edge.next.origin, out intersectionPoint))
+            {
+                SplitEdge(edge, intersectionPoint);
+                AddLine(a, intersectionPoint, edgeSearchOffset+2);
+                AddLine(intersectionPoint, b, edgeSearchOffset+2);
+                return;
+            }
         }
         a = AddOrFindVert(a);
         b = AddOrFindVert(b);
@@ -372,8 +469,8 @@ public class Uded : MonoBehaviour
         atob.twin.twin = atob;
         Edges.Add(atob);
         Edges.Add(atob.twin);
-        FixLink(b, atob);
-        FixLink(a, atob.twin);        
+        // FixLink(b, atob);
+        // FixLink(a, atob.twin);        
     }
     private void AddLine(float ax, float ay, float bx, float by)
     {
