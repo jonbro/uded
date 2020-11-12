@@ -1,6 +1,8 @@
 /*
  * todo
  * - edge splitting
+ * - multiple splits of the same line are broken
+ * - undo support
  * - switch half edge to use indexes
  * - switch 
  * - organize code to be usable
@@ -12,7 +14,7 @@ using System.Linq;
 using UnityEngine;
 
 namespace Uded
-{ 
+{
     [ExecuteInEditMode]
     public class UdedCore : MonoBehaviour
     {
@@ -34,6 +36,18 @@ namespace Uded
             Edges = new List<HalfEdge>();
             Faces = new List<Face>();
         }
+
+        public void Clear()
+        {
+            Vertexes = new List<Vertex>();
+            Edges = new List<HalfEdge>();
+            Faces = new List<Face>();
+            foreach (var childObject in childObjects)
+            {
+                DestroyImmediate(childObject);
+            }
+        }
+
         public void Rebuild()
         {
             foreach (var childObject in childObjects)
@@ -351,7 +365,7 @@ namespace Uded
                 next = edgePair,
                 prev = edgePair.prev
             };
-            
+
             edgePair.prev = ctob.twin;
             edgePair.origin = c;
             Edges.Add(ctob);
@@ -375,6 +389,7 @@ namespace Uded
                     SplitEdge(edge, intersectionPoint);
                     AddLine(a, intersectionPoint, edgeSearchOffset+2);
                     AddLine(intersectionPoint, b, edgeSearchOffset+2);
+                    // TODO: this shouldn't return, there are conditions where the incoming line can split multiple times
                     return;
                 }
             }
@@ -393,8 +408,8 @@ namespace Uded
             atob.twin.twin = atob;
             Edges.Add(atob);
             Edges.Add(atob.twin);
-            // FixLink(b, atob);
-            // FixLink(a, atob.twin);        
+            FixLink(b, atob);
+            FixLink(a, atob.twin);        
         }
         private void AddLine(float ax, float ay, float bx, float by)
         {

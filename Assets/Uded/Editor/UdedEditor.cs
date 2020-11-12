@@ -7,6 +7,18 @@ namespace Uded
     [CustomEditor( typeof( UdedCore ) )]
     public class UdedEditor : Editor
     {
+        public override void OnInspectorGUI()
+        {
+            var uded = (UdedCore)target;
+            DrawDefaultInspector ();
+            if (GUILayout.Button("Clear"))
+            {
+                uded.Clear();
+                EditorUtility.SetDirty(uded);
+            }
+            
+        }
+
         void OnSceneGUI()
         {
             // get the chosen game object

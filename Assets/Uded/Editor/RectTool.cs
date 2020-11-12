@@ -16,6 +16,7 @@ namespace Uded
         void OnEnable()
         {
             EditorTools.activeToolChanged += ActiveToolDidChange;
+            drawingStage = 0;
         }
 
         void OnDisable()
@@ -85,6 +86,7 @@ namespace Uded
         void OnEnable()
         {
             EditorTools.activeToolChanged += ActiveToolDidChange;
+            drawingStage = 0;
         }
 
         void OnDisable()
