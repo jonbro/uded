@@ -11,6 +11,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using UnityEditor.Graphs;
 using UnityEngine;
 
 namespace Uded
@@ -48,6 +49,23 @@ namespace Uded
             }
         }
 
+        public void SetIds()
+        {
+            foreach (var edge in Edges)
+            {
+                int i = 0;
+                foreach (var edge2 in Edges)
+                {
+                    if (edge.next == edge2)
+                        edge.nextId = i;
+                    if (edge.prev == edge2)
+                        edge.prevId = i;
+                    if (edge.twin == edge2)
+                        edge.twinId = i;
+                    i++;
+                }
+            }
+        }
         public void Rebuild()
         {
             foreach (var childObject in childObjects)
@@ -293,17 +311,6 @@ namespace Uded
             int id = 0;
             int foundId = 0;
             int incomingId = 0;
-            foreach (var edge in Edges)
-            {
-                if (edge == incoming)
-                {
-                    incomingId = id;
-                    break;
-                }
-
-                id++;
-            }
-
             id = 0;
             foreach (var edge in Edges)
             {
@@ -372,7 +379,26 @@ namespace Uded
             Edges.Add(ctob.twin);
         }
 
-        public void AddLine(Vertex a, Vertex b, int edgeSearchOffset = 0)
+        public void AddLine(Vertex a, Vertex b)
+        {
+            int startEdgeId = Edges.Count;
+            AddLineInternal(a, b);
+            // this may not be necessary to build this list
+            // will validate at some point
+            var edgeTargetDict = new Dictionary<HalfEdge, Vertex>();
+            for (int i = startEdgeId; i < Edges.Count; i++)
+            {
+                edgeTargetDict[Edges[i]] = Edges[i].next.origin;
+                FixLink(Edges[i].next.origin, Edges[i]);
+            }
+            Debug.Log("fixing lines: " + startEdgeId + " > " + Edges.Count);
+            foreach (var edgeTargetPair in edgeTargetDict)
+            {
+                // FixLink(edgeTargetPair.Value, edgeTargetPair.Key);
+            }
+        }
+
+        private void AddLineInternal(Vertex a, Vertex b, int edgeSearchOffset = 0)
         {
             if (a.Equals(b))
             {
@@ -387,9 +413,8 @@ namespace Uded
                 if (LineLineIntersection(a, b, edge.origin, edge.next.origin, out intersectionPoint))
                 {
                     SplitEdge(edge, intersectionPoint);
-                    AddLine(a, intersectionPoint, edgeSearchOffset+2);
-                    AddLine(intersectionPoint, b, edgeSearchOffset+2);
-                    // TODO: this shouldn't return, there are conditions where the incoming line can split multiple times
+                    AddLineInternal(a, intersectionPoint, edgeSearchOffset+2);
+                    AddLineInternal(intersectionPoint, b, edgeSearchOffset+2);
                     return;
                 }
             }
@@ -408,9 +433,13 @@ namespace Uded
             atob.twin.twin = atob;
             Edges.Add(atob);
             Edges.Add(atob.twin);
-            FixLink(b, atob);
-            FixLink(a, atob.twin);        
+            // fix link just needs to be run on all the newly generated edges
+            // but it needs to be done post facto, I believe
+            // FixLink(b, atob);
+            // FixLink(a, atob.twin);
+
         }
+
         private void AddLine(float ax, float ay, float bx, float by)
         {
             Vertex a = new Vector2(ax, ay);

@@ -11,6 +11,16 @@ namespace Uded
         {
             var uded = (UdedCore)target;
             DrawDefaultInspector ();
+            if (GUILayout.Button("Rebuild"))
+            {
+                uded.Rebuild();
+                EditorUtility.SetDirty(uded);
+            }
+            if (GUILayout.Button("Set Ids"))
+            {
+                uded.SetIds();
+                EditorUtility.SetDirty(uded);
+            }
             if (GUILayout.Button("Clear"))
             {
                 uded.Clear();
