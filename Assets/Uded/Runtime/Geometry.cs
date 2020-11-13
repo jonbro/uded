@@ -20,6 +20,7 @@ namespace Uded
         public HalfEdge prev;
         public int face;
         public int twinId;
+        public int vertId;
         public int nextId;
         public int prevId;
     }

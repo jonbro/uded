@@ -2,6 +2,7 @@
  * todo
  * - edge splitting
  * - multiple splits of the same line are broken
+ * - seems like fixlinks is causing issues 
  * - undo support
  * - switch half edge to use indexes
  * - switch 
@@ -64,13 +65,20 @@ namespace Uded
                         edge.twinId = i;
                     i++;
                 }
+                i = 0;
+                foreach (var vert in Vertexes)
+                {
+                    if (edge.origin == vert)
+                        edge.vertId = i;
+                    i++;
+                }
             }
         }
         public void Rebuild()
         {
             foreach (var childObject in childObjects)
             {
-                Destroy(childObject);
+                DestroyImmediate(childObject);
             }
             Faces.Clear();
             // find how many sectors we have
@@ -291,12 +299,14 @@ namespace Uded
         {
             left = (left - mid).normalized;
             right = (right - mid).normalized;
+            if (left.Equals(right))
+                return Mathf.PI;
             var angle = Mathf.Atan2(left.y, left.x) - Mathf.Atan2(-right.y, -right.x);
             if (angle > Mathf.PI)
             {
                 angle -= 2 * Mathf.PI;
             }
-            else if (angle <= -Mathf.PI)
+            if (angle - Mathf.Epsilon*2.0f <= -Mathf.PI)
             {
                 angle += 2 * Mathf.PI;
             }
@@ -304,39 +314,48 @@ namespace Uded
             return angle;
         }
 
-        private bool FixLink(Vertex target, HalfEdge incoming)
+        private bool FixLink(HalfEdge incoming)
         {
             HalfEdge res = null;
+            SetIds();
             float minimumAngle = 100000;
             int id = 0;
-            int foundId = 0;
+            int targetId = 0;
             int incomingId = 0;
+            foreach (var edge in Edges)
+            {
+                if (edge == incoming)
+                    incomingId = id;
+                id++;
+            }
+
             id = 0;
             foreach (var edge in Edges)
             {
-                if (edge != incoming && edge.origin.Equals(target))
+                if (edge != incoming && edge.origin == incoming.twin.origin)
                 {
                     float newAngle =
-                        AngleBetweenTwoVectors((Vector2) target, (Vector2) incoming.origin, (Vector2) edge.next.origin);
+                        AngleBetweenTwoVectors((Vector2) incoming.twin.origin, (Vector2) incoming.origin, (Vector2) edge.next.origin);
+                    Debug.Log("angle between " + incomingId + ", " + id + ": " + newAngle);
                     if (newAngle < minimumAngle)
                     {
                         minimumAngle = newAngle;
                         res = edge;
-                        foundId = id;
+                        targetId = id;
                     }
                 }
-
                 id++;
             }
-
+            
             if (res != null)
             {
+                Debug.Log("connecting " + incomingId + " to " + targetId + " - " + minimumAngle);
                 incoming.next = res;
                 if (res.prev != null && res.prev != incoming)
                 {
-                    var nextFixup = res.prev;
-                    res.prev = null;
-                    FixLink(res.origin, nextFixup);
+                    // var nextFixup = res.prev;
+                    // res.prev = null;
+                    // FixLink(res.origin, nextFixup);
                 }
 
                 res.prev = incoming;
@@ -386,15 +405,15 @@ namespace Uded
             // this may not be necessary to build this list
             // will validate at some point
             var edgeTargetDict = new Dictionary<HalfEdge, Vertex>();
-            for (int i = startEdgeId; i < Edges.Count; i++)
+            for (int i = 0; i < Edges.Count; i++)
             {
                 edgeTargetDict[Edges[i]] = Edges[i].next.origin;
-                FixLink(Edges[i].next.origin, Edges[i]);
+                //FixLink(Edges[i].next.origin, Edges[i]);
             }
             Debug.Log("fixing lines: " + startEdgeId + " > " + Edges.Count);
             foreach (var edgeTargetPair in edgeTargetDict)
             {
-                // FixLink(edgeTargetPair.Value, edgeTargetPair.Key);
+                FixLink(edgeTargetPair.Key);
             }
         }
 

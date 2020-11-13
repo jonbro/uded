@@ -57,6 +57,7 @@ namespace Uded
 
             if (uded.Vertexes.Count > 0)
             {
+                count = 0;
                 // display all verts
                 foreach (var vertex in uded.Vertexes)
                 {
@@ -64,6 +65,8 @@ namespace Uded
                     Handles.DrawSolidDisc((Vector3)vertex, Vector3.up, 0.01f);
                     Handles.color = Color.black;
                     Handles.DrawWireDisc((Vector3)vertex, Vector3.up, 0.01f);
+                    Handles.Label((Vector3)vertex, ""+count++);
+
                 }
                 Handles.Label((Vector3)uded.Vertexes[0], "edges: " + uded.Edges.Count);
             }    
