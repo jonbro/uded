@@ -33,6 +33,8 @@ namespace Uded
         {
             // get the chosen game object
             var uded = target as UdedCore;
+            if (!uded.displayDebug)
+                return;
             HashSet<Uded.HalfEdge> displayedEdges = new HashSet<Uded.HalfEdge>();
             // display all edges
             int count = 0;

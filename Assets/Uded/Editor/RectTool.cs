@@ -33,7 +33,6 @@ namespace Uded
 
         public override void OnToolGUI(EditorWindow window)
         {
-
             var sceneView = window as SceneView;
             if (sceneView == null)
                 return;
@@ -83,10 +82,22 @@ namespace Uded
         private int drawingStage;
         private Vector3 firstPoint;
         private Vector3 secondPoint;
+        GUIContent m_IconContent;
+
+        [SerializeField]
+        Texture2D m_ToolIcon;
+
+        public override GUIContent toolbarIcon => m_IconContent;
+
         void OnEnable()
         {
             EditorTools.activeToolChanged += ActiveToolDidChange;
             drawingStage = 0;
+            m_IconContent = new GUIContent()
+            {
+                text = "Platform Tool",
+                tooltip = "Platform Tool"
+            };
         }
 
         void OnDisable()
