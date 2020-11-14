@@ -37,7 +37,7 @@ namespace Uded
             {
                 var edge = uded.Edges[i];
                 var twin = uded.Edges[i + 1];
-                Handles.DrawLine((Vector3)edge.origin, (Vector3)twin.origin);
+                Handles.DrawLine(uded.EdgeVertex(edge), uded.EdgeVertex(twin));
             }
             if (!uded.displayDebug)
                 return;
@@ -50,14 +50,14 @@ namespace Uded
                     continue;
                 Handles.color = Color.black;
                 // offset to the left
-                var forward = (Vector3) edge.next.origin - (Vector3) edge.origin;
+                var forward = (Vector3)uded.EdgeVertex(edge.nextId) - (Vector3)uded.EdgeVertex(edge);
                 var forwardRot = Quaternion.LookRotation(forward);
                 var arrowRot = forwardRot * Quaternion.AngleAxis(190, Vector3.up);
                 Vector3 left = forwardRot * Vector3.left * 0.02f;
-                Handles.DrawLine((Vector3)edge.origin+left, (Vector3)edge.next.origin+left);
-                var center = Vector3.Lerp((Vector3) edge.origin+left, (Vector3) edge.next.origin+left, 0.5f);
+                Handles.DrawLine((Vector3)(Vector3)uded.EdgeVertex(edge)+left, (Vector3)uded.EdgeVertex(edge.nextId)+left);
+                var center = Vector3.Lerp((Vector3) (Vector3)uded.EdgeVertex(edge)+left, (Vector3) uded.EdgeVertex(edge.nextId)+left, 0.5f);
                 // arrow displaying orientation
-                Handles.DrawLine((Vector3)edge.next.origin+left, (Vector3)edge.next.origin+left+arrowRot*Vector3.forward*0.1f);
+                Handles.DrawLine((Vector3)uded.EdgeVertex(edge.nextId)+left, (Vector3)uded.EdgeVertex(edge.nextId)+left+arrowRot*Vector3.forward*0.1f);
                 Handles.Label(center, ""+count++);
                 displayedEdges.Add(edge);
             }

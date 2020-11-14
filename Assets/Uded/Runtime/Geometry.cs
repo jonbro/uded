@@ -14,11 +14,8 @@ namespace Uded
     [Serializable]
     public class HalfEdge
     {
-        public Vertex origin;
-        public HalfEdge next;
-        public HalfEdge prev;
         public int face;
-        public int vertId;
+        public int vertexIndex;
         public int nextId;
         public int prevId;
     }

@@ -54,7 +54,12 @@ namespace Uded
 
         private HalfEdge GetTwin(int edgeIndex)
         {
-            return Edges[edgeIndex % 2 == 0 ? edgeIndex + 1 : edgeIndex - 1];
+            return Edges[GetTwinIndex(edgeIndex)];
+        }
+
+        private int GetTwinIndex(int edgeIndex)
+        {
+            return edgeIndex % 2 == 0 ? edgeIndex + 1 : edgeIndex - 1;
         }
         public void Rebuild()
         {
@@ -85,14 +90,17 @@ namespace Uded
                 {
                     face.Edges.Add(edgeLookup[nextEdge]);
                     var last = nextEdge;
-                    nextEdge = nextEdge.next;
+                    nextEdge = Edges[nextEdge.nextId];
+                    var nextVert = EdgeVertex(nextEdge);
+                    var lastVert = EdgeVertex(last);
+                    var firstVert = EdgeVertex(firstEdge);
                     if (nextEdge != null)
-                        sideSum += (nextEdge.origin.x - last.origin.x) * (nextEdge.origin.y + last.origin.y);
+                        sideSum += (nextVert.x - lastVert.x) * (nextVert.y + lastVert.y);
                     if (!unvisitedEdges.Contains(nextEdge))
                     {
                         if (firstEdge == nextEdge)
                         {
-                            sideSum += (firstEdge.origin.x - nextEdge.origin.x) * (firstEdge.origin.y + nextEdge.origin.y);
+                            sideSum += (firstVert.x - nextVert.x) * (firstVert.y + nextVert.y);
                             face.clockwise = sideSum > 0;
                             faceCount++;
                         }
@@ -123,7 +131,7 @@ namespace Uded
                     var containingFaces = new Dictionary<int, ValueTuple<int, int>>();
                     // determine if this face is contained within another poly
                     var testEdge = Edges[face.Edges[0]];
-                    Ray2D testRay = new Ray2D(testEdge.origin, Vector2.right);
+                    Ray2D testRay = new Ray2D(EdgeVertex(testEdge), Vector2.right);
                     int facePriority = 0;
                     int count = -1;
                     for (int j = 0; j < Faces.Count; j++)
@@ -137,7 +145,7 @@ namespace Uded
                             var edge = Edges[exteriorFaceEdgeIndex];
                             if (GetTwin(exteriorFaceEdgeIndex).face == testingFaceIndex)
                                 break;
-                            if (RayLineIntersection(testRay, edge.origin, edge.next.origin) != null)
+                            if (RayLineIntersection(testRay, EdgeVertex(edge), EdgeVertex(edge.nextId)) != null)
                             {
                                 if (!containingFaces.ContainsKey(edge.face))
                                 {
@@ -181,14 +189,14 @@ namespace Uded
                 }
                 var go = new GameObject();
                 go.transform.SetParent(transform);
-                go.AddComponent<MeshFilter>().sharedMesh = PolyToMesh.GetMeshFromFace(i, Edges, Faces);
+                go.AddComponent<MeshFilter>().sharedMesh = PolyToMesh.GetMeshFromFace(i, this, Edges, Faces);
                 go.AddComponent<MeshRenderer>().sharedMaterials = new[] {DefaultMat, DefaultMat};
                 childObjects.Add(go);
             }
 
         }
 
-        private Vertex AddOrFindVert(Vertex newVert)
+        private int AddOrFindVert(Vertex newVert)
         {
             // detemine if these verts already exist
             for (int i = 0; i < Vertexes.Count; i++)
@@ -196,12 +204,12 @@ namespace Uded
                 var vert = Vertexes[i];
                 if (vert.Equals(newVert))
                 {
-                    return vert;
+                    return i;
                 }
             }
 
             Vertexes.Add(newVert);
-            return newVert;
+            return Vertexes.Count-1;
         }
 
         public static float Vector2Cross(Vector2 a, Vector2 b)
@@ -286,29 +294,29 @@ namespace Uded
         private bool FixLink(int edgeIndex)
         {
             HalfEdge incoming = Edges[edgeIndex];
-            HalfEdge res = null;
+            int res = -1;
             HalfEdge twin = GetTwin(edgeIndex);
             // SetIds();
             float minimumAngle = 100000;
-
-            foreach (var edge in Edges)
+            for (int i = 0; i < Edges.Count; i++)
             {
-                if (edge != incoming && edge.origin == twin.origin)
+                var edge = Edges[i];
+                if (edge != incoming && edge.vertexIndex == twin.vertexIndex)
                 {
                     float newAngle =
-                        AngleBetweenTwoVectors((Vector2) twin.origin, (Vector2) incoming.origin, (Vector2) edge.next.origin);
+                        AngleBetweenTwoVectors((Vector2) EdgeVertex(twin), (Vector2) EdgeVertex(incoming), (Vector2) EdgeVertex(edge.nextId));
                     if (newAngle < minimumAngle)
                     {
                         minimumAngle = newAngle;
-                        res = edge;
+                        res = i;
                     }
                 }
             }
             
-            if (res != null)
+            if (res >=0)
             {
-                incoming.next = res;
-                res.prev = incoming;
+                incoming.nextId = res;
+                Edges[res].prevId = edgeIndex;
                 return true;
             }
 
@@ -328,26 +336,35 @@ namespace Uded
             HalfEdge edge = Edges[edgeIndex];
             var c = AddOrFindVert(splitPoint);
             var ctoa = GetTwin(edgeIndex);
-            var b = ctoa.origin;
+            var b = ctoa.vertexIndex;
             HalfEdge ctob = new HalfEdge
             {
-                origin = c,
-                prev = edge
+                vertexIndex = c,
+                prevId = edgeIndex,
+                nextId = Edges.Count+1
             };
-            edge.next = ctob;
-            var btoc = ctob.next = new HalfEdge
+            edge.nextId = Edges.Count;
+            var btoc = new HalfEdge
             {
-                origin = b,
-                next = ctoa,
-                prev = ctoa.prev
+                vertexIndex = b,
+                nextId = GetTwinIndex(edgeIndex),
+                prevId = ctoa.prevId
             };
 
-            ctoa.prev = btoc;
-            ctoa.origin = c;
+            ctoa.prevId = Edges.Count+1;
+            ctoa.vertexIndex = c;
             Edges.Add(ctob);
             Edges.Add(btoc);
         }
 
+        public Vertex EdgeVertex(HalfEdge e)
+        {
+            return Vertexes[e.vertexIndex];
+        }
+        public Vertex EdgeVertex(int edgeId)
+        {
+            return Vertexes[Edges[edgeId].vertexIndex];
+        }
         public void AddLine(Vertex a, Vertex b)
         {
             AddLineInternal(a, b);
@@ -369,7 +386,7 @@ namespace Uded
             {
                 var edge = Edges[i];
                 Vector2 intersectionPoint;
-                if (LineLineIntersection(a, b, edge.origin, edge.next.origin, out intersectionPoint))
+                if (LineLineIntersection(a, b, EdgeVertex(edge), EdgeVertex(edge.nextId), out intersectionPoint))
                 {
                     SplitEdge(i, intersectionPoint);
                     AddLineInternal(a, intersectionPoint, edgeSearchOffset+2);
@@ -377,17 +394,19 @@ namespace Uded
                     return;
                 }
             }
-            a = AddOrFindVert(a);
-            b = AddOrFindVert(b);
+            var vertexIndexA = AddOrFindVert(a);
+            var vertexIndexB = AddOrFindVert(b);
             HalfEdge atob = new HalfEdge
             {
-                origin = a,
+                vertexIndex = vertexIndexA,
+                nextId = Edges.Count+1,
+                prevId = Edges.Count+1
             };
-            var btoa = atob.prev = atob.next = new HalfEdge()
+            var btoa = new HalfEdge()
             {
-                origin = b,
-                next = atob,
-                prev = atob
+                vertexIndex = vertexIndexB,
+                nextId = Edges.Count,
+                prevId = Edges.Count
             };
             Edges.Add(atob);
             Edges.Add(btoa);
