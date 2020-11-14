@@ -15,11 +15,9 @@ namespace Uded
     public class HalfEdge
     {
         public Vertex origin;
-        public HalfEdge twin;
         public HalfEdge next;
         public HalfEdge prev;
         public int face;
-        public int twinId;
         public int vertId;
         public int nextId;
         public int prevId;

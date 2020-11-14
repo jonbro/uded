@@ -33,9 +33,15 @@ namespace Uded
         {
             // get the chosen game object
             var uded = target as UdedCore;
+            for (int i = 0; i < uded.Edges.Count; i+=2)
+            {
+                var edge = uded.Edges[i];
+                var twin = uded.Edges[i + 1];
+                Handles.DrawLine((Vector3)edge.origin, (Vector3)twin.origin);
+            }
             if (!uded.displayDebug)
                 return;
-            HashSet<Uded.HalfEdge> displayedEdges = new HashSet<Uded.HalfEdge>();
+            HashSet<HalfEdge> displayedEdges = new HashSet<HalfEdge>();
             // display all edges
             int count = 0;
             foreach (var edge in uded.Edges)
@@ -53,7 +59,6 @@ namespace Uded
                 // arrow displaying orientation
                 Handles.DrawLine((Vector3)edge.next.origin+left, (Vector3)edge.next.origin+left+arrowRot*Vector3.forward*0.1f);
                 Handles.Label(center, ""+count++);
-
                 displayedEdges.Add(edge);
             }
 
@@ -68,7 +73,6 @@ namespace Uded
                     Handles.color = Color.black;
                     Handles.DrawWireDisc((Vector3)vertex, Vector3.up, 0.01f);
                     Handles.Label((Vector3)vertex, ""+count++);
-
                 }
                 Handles.Label((Vector3)uded.Vertexes[0], "edges: " + uded.Edges.Count);
             }    

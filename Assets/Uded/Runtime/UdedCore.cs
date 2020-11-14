@@ -1,10 +1,12 @@
 /*
  * todo
+ * - nothing is serialized :/
  * - undo support
- * - data isn't saved on recompile :/
+ * - grid snapping
+ * - walls
+ * - sector height control
  * - switch half edge to use indexes
  * - switch 
- * - organize code to be usable
  * - faces are sectors (materials & heights)
  */
 using System;
@@ -16,23 +18,20 @@ using UnityEngine;
 namespace Uded
 {
     [ExecuteInEditMode]
+    [Serializable]
+    
     public class UdedCore : MonoBehaviour
     {
         public Material DefaultMat;
-        public List<Vertex> Vertexes;
-        public List<HalfEdge> Edges;
-        public List<Face> Faces;
+        public List<Vertex> Vertexes = new List<Vertex>();
+        public List<HalfEdge> Edges = new List<HalfEdge>();
+        public List<Face> Faces = new List<Face>();
         public bool displayDebug;
-        private List<GameObject> childObjects = new List<GameObject>();
+        public List<GameObject> childObjects = new List<GameObject>();
 
-        /// <summary>
-        /// test function
-        /// </summary>
-        private void OnEnable()
+        public void OnEnable()
         {
-            Vertexes = new List<Vertex>();
-            Edges = new List<HalfEdge>();
-            Faces = new List<Face>();
+            Rebuild();
         }
 
         public void Clear()
@@ -50,25 +49,12 @@ namespace Uded
         {
             foreach (var edge in Edges)
             {
-                int i = 0;
-                foreach (var edge2 in Edges)
-                {
-                    if (edge.next == edge2)
-                        edge.nextId = i;
-                    if (edge.prev == edge2)
-                        edge.prevId = i;
-                    if (edge.twin == edge2)
-                        edge.twinId = i;
-                    i++;
-                }
-                i = 0;
-                foreach (var vert in Vertexes)
-                {
-                    if (edge.origin == vert)
-                        edge.vertId = i;
-                    i++;
-                }
             }
+        }
+
+        private HalfEdge GetTwin(int edgeIndex)
+        {
+            return Edges[edgeIndex % 2 == 0 ? edgeIndex + 1 : edgeIndex - 1];
         }
         public void Rebuild()
         {
@@ -76,6 +62,7 @@ namespace Uded
             {
                 DestroyImmediate(childObject);
             }
+            childObjects.Clear();
             Faces.Clear();
             // find how many sectors we have
             HashSet<HalfEdge> unvisitedEdges = new HashSet<HalfEdge>(Edges);
@@ -126,20 +113,6 @@ namespace Uded
                 }            
             }
             
-            foreach (var edge in Edges)
-            {
-                int i = 0;
-                foreach (var edge2 in Edges)
-                {
-                    if (edge.next == edge2)
-                        edge.nextId = i;
-                    if (edge.prev == edge2)
-                        edge.prevId = i;
-                    if (edge.twin == edge2)
-                        edge.twinId = i;
-                    i++;
-                }
-            }
 
             for (int testingFaceIndex = 0; testingFaceIndex < Faces.Count; testingFaceIndex++)
             {
@@ -162,7 +135,7 @@ namespace Uded
                         for (int exteriorFaceEdgeIndex = 0; exteriorFaceEdgeIndex < faceExterior.Edges.Count; exteriorFaceEdgeIndex++)
                         {
                             var edge = Edges[exteriorFaceEdgeIndex];
-                            if (edge.twin.face == testingFaceIndex)
+                            if (GetTwin(exteriorFaceEdgeIndex).face == testingFaceIndex)
                                 break;
                             if (RayLineIntersection(testRay, edge.origin, edge.next.origin) != null)
                             {
@@ -310,50 +283,31 @@ namespace Uded
             return angle;
         }
 
-        private bool FixLink(HalfEdge incoming)
+        private bool FixLink(int edgeIndex)
         {
+            HalfEdge incoming = Edges[edgeIndex];
             HalfEdge res = null;
+            HalfEdge twin = GetTwin(edgeIndex);
             // SetIds();
             float minimumAngle = 100000;
-            int id = 0;
-            int targetId = 0;
-            int incomingId = 0;
-            foreach (var edge in Edges)
-            {
-                if (edge == incoming)
-                    incomingId = id;
-                id++;
-            }
 
-            id = 0;
             foreach (var edge in Edges)
             {
-                if (edge != incoming && edge.origin == incoming.twin.origin)
+                if (edge != incoming && edge.origin == twin.origin)
                 {
                     float newAngle =
-                        AngleBetweenTwoVectors((Vector2) incoming.twin.origin, (Vector2) incoming.origin, (Vector2) edge.next.origin);
-                    // Debug.Log("angle between " + incomingId + ", " + id + ": " + newAngle);
+                        AngleBetweenTwoVectors((Vector2) twin.origin, (Vector2) incoming.origin, (Vector2) edge.next.origin);
                     if (newAngle < minimumAngle)
                     {
                         minimumAngle = newAngle;
                         res = edge;
-                        targetId = id;
                     }
                 }
-                id++;
             }
             
             if (res != null)
             {
-                // Debug.Log("connecting " + incomingId + " to " + targetId + " - " + minimumAngle);
                 incoming.next = res;
-                if (res.prev != null && res.prev != incoming)
-                {
-                    // var nextFixup = res.prev;
-                    // res.prev = null;
-                    // FixLink(res.origin, nextFixup);
-                }
-
                 res.prev = incoming;
                 return true;
             }
@@ -369,47 +323,37 @@ namespace Uded
             AddLine(d, a);
         }
 
-        private void SplitEdge(HalfEdge edge, Vertex splitPoint)
+        private void SplitEdge(int edgeIndex, Vertex splitPoint)
         {
+            HalfEdge edge = Edges[edgeIndex];
             var c = AddOrFindVert(splitPoint);
-            var edgePair = edge.twin;
-            var b = edgePair.origin;
+            var ctoa = GetTwin(edgeIndex);
+            var b = ctoa.origin;
             HalfEdge ctob = new HalfEdge
             {
                 origin = c,
                 prev = edge
             };
             edge.next = ctob;
-            ctob.next = ctob.twin = new HalfEdge
+            var btoc = ctob.next = new HalfEdge
             {
                 origin = b,
-                twin = ctob,
-                next = edgePair,
-                prev = edgePair.prev
+                next = ctoa,
+                prev = ctoa.prev
             };
 
-            edgePair.prev = ctob.twin;
-            edgePair.origin = c;
+            ctoa.prev = btoc;
+            ctoa.origin = c;
             Edges.Add(ctob);
-            Edges.Add(ctob.twin);
+            Edges.Add(btoc);
         }
 
         public void AddLine(Vertex a, Vertex b)
         {
-            int startEdgeId = Edges.Count;
             AddLineInternal(a, b);
-            // this may not be necessary to build this list
-            // will validate at some point
-            var edgeTargetDict = new Dictionary<HalfEdge, Vertex>();
             for (int i = 0; i < Edges.Count; i++)
             {
-                edgeTargetDict[Edges[i]] = Edges[i].next.origin;
-                //FixLink(Edges[i].next.origin, Edges[i]);
-            }
-            // Debug.Log("fixing lines: " + startEdgeId + " > " + Edges.Count);
-            foreach (var edgeTargetPair in edgeTargetDict)
-            {
-                FixLink(edgeTargetPair.Key);
+                FixLink(i);
             }
         }
 
@@ -427,7 +371,7 @@ namespace Uded
                 Vector2 intersectionPoint;
                 if (LineLineIntersection(a, b, edge.origin, edge.next.origin, out intersectionPoint))
                 {
-                    SplitEdge(edge, intersectionPoint);
+                    SplitEdge(i, intersectionPoint);
                     AddLineInternal(a, intersectionPoint, edgeSearchOffset+2);
                     AddLineInternal(intersectionPoint, b, edgeSearchOffset+2);
                     return;
@@ -439,20 +383,14 @@ namespace Uded
             {
                 origin = a,
             };
-            atob.prev = atob.next = atob.twin = new HalfEdge()
+            var btoa = atob.prev = atob.next = new HalfEdge()
             {
-                origin = b
+                origin = b,
+                next = atob,
+                prev = atob
             };
-            atob.twin.next = atob;
-            atob.twin.prev = atob;
-            atob.twin.twin = atob;
             Edges.Add(atob);
-            Edges.Add(atob.twin);
-            // fix link just needs to be run on all the newly generated edges
-            // but it needs to be done post facto, I believe
-            // FixLink(b, atob);
-            // FixLink(a, atob.twin);
-
+            Edges.Add(btoa);
         }
 
         private void AddLine(float ax, float ay, float bx, float by)
