@@ -183,11 +183,11 @@ namespace Uded
             }
             for (int i = 0; i < Faces.Count; i++)
             {
-                if (Faces[i].clockwise)
+                if (Faces[i].clockwise || Faces[i].Edges.Count < 3)
                 {
                     continue;
                 }
-                var go = new GameObject();
+                var go = new GameObject("face " + i);
                 go.transform.SetParent(transform);
                 go.AddComponent<MeshFilter>().sharedMesh = PolyToMesh.GetMeshFromFace(i, this, Edges, Faces);
                 go.AddComponent<MeshRenderer>().sharedMaterials = new[] {DefaultMat, DefaultMat};
