@@ -119,8 +119,7 @@ namespace Uded
                 return;
 
         }
-        static readonly int kDrawLineModeHash		= "DrawLineMode".GetHashCode();
-
+ 
         public override void OnToolGUI(EditorWindow window)
         {
             var sceneView = window as SceneView;
@@ -138,7 +137,7 @@ namespace Uded
             {
                 var intersectionPoint = SnapControl.SnapToGrid(ray.GetPoint(rayEnter));
                 Handles.DrawSolidDisc(intersectionPoint, Vector3.up, 0.1f);
-                var defaultID = GUIUtility.GetControlID(kDrawLineModeHash, FocusType.Keyboard, dragArea);
+                var defaultID = GUIUtility.GetControlID(FocusType.Keyboard, dragArea);
                 HandleUtility.AddDefaultControl(defaultID);
                 if (evt.type == EventType.MouseDown && evt.button == 0)
                 {

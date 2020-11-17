@@ -19,7 +19,7 @@ namespace Uded
 {
     [ExecuteInEditMode]
     [Serializable]
-    
+
     public class UdedCore : MonoBehaviour
     {
         public Material DefaultMat;
@@ -27,6 +27,7 @@ namespace Uded
         public List<HalfEdge> Edges = new List<HalfEdge>();
         public List<Face> Faces = new List<Face>();
         public bool displayDebug;
+        public bool displayEdges;
         public List<GameObject> childObjects = new List<GameObject>();
 
         public void OnEnable()
@@ -44,85 +45,145 @@ namespace Uded
                 DestroyImmediate(childObject);
             }
         }
-
-        public void SetIds()
-        {
-            foreach (var edge in Edges)
-            {
-            }
-        }
-
-        private HalfEdge GetTwin(int edgeIndex)
+        
+        public HalfEdge GetTwin(int edgeIndex)
         {
             return Edges[GetTwinIndex(edgeIndex)];
         }
-
+        // output all the edge indexes that have their origin at a vert
+        public void DebugExitsForVert(int vert)
+        {
+            List<int> edges = new List<int>();
+            for (int i = 0; i < Edges.Count; i++)
+            {
+                if (Edges[i].vertexIndex == vert)
+                {
+                    edges.Add(i);
+                }
+            }
+            Debug.Log(string.Join(",", edges));
+        }
         private int GetTwinIndex(int edgeIndex)
         {
             return edgeIndex % 2 == 0 ? edgeIndex + 1 : edgeIndex - 1;
         }
+
+        public void DrawEdge(int edgeIndex, Color color, float duration = 0)
+        {
+            Debug.DrawLine(Vertexes[Edges[edgeIndex].vertexIndex], Vertexes[GetTwin(edgeIndex).vertexIndex], color, duration);
+        }
+
+        public void ForceRebuild()
+        {
+            foreach (var edge in Edges)
+            {
+                edge.face = -1;
+            }
+        }
         public void Rebuild()
         {
-            foreach (var childObject in childObjects)
-            {
-                DestroyImmediate(childObject);
-            }
-            childObjects.Clear();
-            Faces.Clear();
+            var newFaces = new List<Face>();
             // find how many sectors we have
-            HashSet<HalfEdge> unvisitedEdges = new HashSet<HalfEdge>(Edges);
+            HashSet<HalfEdge> visitedEdges = new HashSet<HalfEdge>();
             // just build a lookup table for edges
             var edgeLookup = new Dictionary<HalfEdge, int>();
             for (int i = 0; i < Edges.Count; i++)
             {
                 edgeLookup[Edges[i]] = i;
             }
+
             int faceCount = 0;
-            while (unvisitedEdges.Count > 0)
+            bool borrowedFaceValues = false; 
+            for (int i = 0; i < Edges.Count; i++)
             {
-                var nextEdge = unvisitedEdges.ElementAt(0);
+                var nextEdge = Edges[i];
+                if (visitedEdges.Contains(nextEdge) || nextEdge.face >= 0)
+                {
+                    continue;
+                }
+
+                visitedEdges.Add(nextEdge);
                 var firstEdge = nextEdge;
-                unvisitedEdges.Remove(nextEdge);
                 var face = new Face();
-                Faces.Add(face);
+                newFaces.Add(face);
                 var sideSum = 0f;
                 while (nextEdge != null)
                 {
                     face.Edges.Add(edgeLookup[nextEdge]);
                     var last = nextEdge;
-                    nextEdge = Edges[nextEdge.nextId];
+                    int currentIndex = nextEdge.nextId;
+                    nextEdge = Edges[currentIndex];
+                    if (nextEdge.face != -1)
+                    {
+                        // clean up the faces whose edges we are stealing
+                        Faces[nextEdge.face].Edges.Remove(currentIndex);
+                        if (!borrowedFaceValues)
+                        {
+                            //TODO: this should do a better job of borrowing values
+                            face.CopyFaceValues(Faces[nextEdge.face]);
+                            borrowedFaceValues = true;
+                        }
+                    }
                     var nextVert = EdgeVertex(nextEdge);
                     var lastVert = EdgeVertex(last);
-                    var firstVert = EdgeVertex(firstEdge);
-                    if (nextEdge != null)
-                        sideSum += (nextVert.x - lastVert.x) * (nextVert.y + lastVert.y);
-                    if (!unvisitedEdges.Contains(nextEdge))
+                    var firstVert = EdgeVertex(firstEdge); 
+                    sideSum += (nextVert.x - lastVert.x) * (nextVert.y + lastVert.y);
+                    if (visitedEdges.Contains(nextEdge))
                     {
                         if (firstEdge == nextEdge)
                         {
                             sideSum += (firstVert.x - nextVert.x) * (firstVert.y + nextVert.y);
                             face.clockwise = sideSum > 0;
                             faceCount++;
+                            // if we made it to the end of face without borrowing anything, check to see if any of the faces
+                            // have a backface we can borrow from
+                            if (!borrowedFaceValues)
+                            {
+                                foreach (var faceEdge in face.Edges)
+                                {
+                                    if (GetTwin(faceEdge).face != -1)
+                                    {
+                                        face.CopyFaceValues(Faces[GetTwin(faceEdge).face]);
+                                        break;
+                                    }
+                                }
+                            }
                         }
-
+                        else
+                        {
+                            // this seems like it would cause issues? Like whatever face this is being produced by this
+                            // edge group isn't a full face 
+                            foreach (var edgeIndex in face.Edges)
+                            {
+                                DrawEdge(edgeIndex, Color.red, 2.0f);
+                            }
+                            throw new System.InvalidOperationException("Invalid face found: " + faceCount);
+                        }
                         nextEdge = null;
                         continue;
                     }
-                    unvisitedEdges.Remove(nextEdge);
+                    visitedEdges.Add(nextEdge);
                 }
             }
 
+            // Faces = newFaces;
             // assign faces to edges
-            for (int i = 0; i < Faces.Count; i++)
+            for (int i = 0; i < newFaces.Count; i++)
             {
-                for (int j = 0; j < Faces[i].Edges.Count; j++)
+                for (int j = 0; j < newFaces[i].Edges.Count; j++)
                 {
-                    Edges[Faces[i].Edges[j]].face = i;
-                }            
+                    Edges[newFaces[i].Edges[j]].face = i+Faces.Count;
+                }
+            }
+
+            int newFaceStart = Faces.Count;
+            // append the new faces to the existing faces
+            foreach (var face in newFaces)
+            {
+                Faces.Add(face);
             }
             
-
-            for (int testingFaceIndex = 0; testingFaceIndex < Faces.Count; testingFaceIndex++)
+            for (int testingFaceIndex = newFaceStart; testingFaceIndex < Faces.Count; testingFaceIndex++)
             {
                 var face = Faces[testingFaceIndex];
                 // if this is an outward facing edge
@@ -138,9 +199,11 @@ namespace Uded
                     {
                         var faceExterior = Faces[j];
                         count++;
-                        if(face == faceExterior || faceExterior.clockwise)
+                        if (face == faceExterior || faceExterior.clockwise)
                             continue;
-                        for (int exteriorFaceEdgeIndex = 0; exteriorFaceEdgeIndex < faceExterior.Edges.Count; exteriorFaceEdgeIndex++)
+                        for (int exteriorFaceEdgeIndex = 0;
+                            exteriorFaceEdgeIndex < faceExterior.Edges.Count;
+                            exteriorFaceEdgeIndex++)
                         {
                             var edge = Edges[exteriorFaceEdgeIndex];
                             if (GetTwin(exteriorFaceEdgeIndex).face == testingFaceIndex)
@@ -154,11 +217,13 @@ namespace Uded
                                 else
                                 {
                                     var lastValue = containingFaces[edge.face];
-                                    containingFaces[edge.face] = new ValueTuple<int, int>(lastValue.Item1++, lastValue.Item2);
+                                    containingFaces[edge.face] =
+                                        new ValueTuple<int, int>(lastValue.Item1++, lastValue.Item2);
                                 }
                             }
                         }
                     }
+
                     // get the containing face with an odd number of crossings and the lowest priority value
                     var lowestValue = 0;
                     int containingFace = -1;
@@ -168,6 +233,7 @@ namespace Uded
                         {
                             continue;
                         }
+
                         if (containingFace < 0 || lowestValue > potentialContainer.Value.Item2)
                         {
                             containingFace = potentialContainer.Key;
@@ -181,21 +247,67 @@ namespace Uded
                     }
                 }
             }
+
+            BuildFaceMeshes();
+
+        }
+
+        public void BuildFaceMeshes()
+        {
+            foreach (var childObject in childObjects)
+            {
+                DestroyImmediate(childObject);
+            }
+
+            childObjects.Clear();
             for (int i = 0; i < Faces.Count; i++)
             {
                 if (Faces[i].clockwise || Faces[i].Edges.Count < 3)
                 {
                     continue;
                 }
+
                 var go = new GameObject("face " + i);
                 go.transform.SetParent(transform);
                 go.AddComponent<MeshFilter>().sharedMesh = PolyToMesh.GetMeshFromFace(i, this, Edges, Faces);
-                go.AddComponent<MeshRenderer>().sharedMaterials = new[] {DefaultMat, DefaultMat};
+                go.AddComponent<MeshRenderer>().sharedMaterials = new[] {DefaultMat, DefaultMat, DefaultMat};
+                // go.hideFlags = HideFlags.HideAndDontSave;
                 childObjects.Add(go);
             }
-
         }
 
+        public Vector2 GetFaceCenter(int faceIndex)
+        {
+            Vector2 center = EdgeVertex(Edges[Faces[faceIndex].Edges[0]]);
+            var edgeCount = Faces[faceIndex].Edges.Count;
+            if(edgeCount == 0)
+                return Vector2.zero;
+            for (int i = 1; i < edgeCount; i++)
+            {
+                var edgeIndex = Faces[faceIndex].Edges[i];
+                var edge = Edges[edgeIndex];
+                center += EdgeVertex(edgeIndex);
+            }
+            return center * (1.0f / edgeCount);
+        }
+
+        public bool PointInFace(Vector2 point, int faceIndex)
+        {
+            Ray2D testRay = new Ray2D(point, Vector2.right);
+            int cross = 0;
+            for (int i = 0; i < Faces[faceIndex].Edges.Count; i++)
+            {
+                var edgeIndex = Faces[faceIndex].Edges[i];
+                var edge = Edges[edgeIndex];
+                if (RayLineIntersection(testRay, EdgeVertex(edge), EdgeVertex(GetTwin(edgeIndex))) != null)
+                {
+                    cross++;
+                }
+            }
+            var pointInFace = cross % 2 == 1;
+            return pointInFace;
+        }
+        
         private int AddOrFindVert(Vertex newVert)
         {
             // detemine if these verts already exist
@@ -291,8 +403,16 @@ namespace Uded
             return angle;
         }
 
-        private bool FixLink(int edgeIndex)
+        public bool FixLink(int edgeIndex, int depth = 0)
         {
+            if (depth > 1000)
+            {
+                Debug.Log("fixing link: " +edgeIndex);
+                Debug.Log("seems likely something has gone wrong");
+                return false;
+            }
+            
+            // do not use nextId while in this function, because it might be temporarily invalid
             HalfEdge incoming = Edges[edgeIndex];
             int res = -1;
             HalfEdge twin = GetTwin(edgeIndex);
@@ -304,7 +424,7 @@ namespace Uded
                 if (edge != incoming && edge.vertexIndex == twin.vertexIndex)
                 {
                     float newAngle =
-                        AngleBetweenTwoVectors((Vector2) EdgeVertex(twin), (Vector2) EdgeVertex(incoming), (Vector2) EdgeVertex(edge.nextId));
+                        AngleBetweenTwoVectors((Vector2) EdgeVertex(twin), (Vector2) EdgeVertex(incoming), (Vector2) EdgeVertex(GetTwin(i)));
                     if (newAngle < minimumAngle)
                     {
                         minimumAngle = newAngle;
@@ -312,11 +432,21 @@ namespace Uded
                     }
                 }
             }
-            
+
+            int initialPrev = Edges[res].prevId;
+            // set this to invalid so we don't use it by mistake
+            Edges[initialPrev].nextId = -1;
+
             if (res >=0)
             {
                 incoming.nextId = res;
                 Edges[res].prevId = edgeIndex;
+                // if this fixup caused a previous link to break, go fix that one
+                if (edgeIndex != initialPrev)
+                {
+                    
+                    FixLink(initialPrev, depth +1);
+                }
                 return true;
             }
 
@@ -376,10 +506,21 @@ namespace Uded
 
         private void AddLineInternal(Vertex a, Vertex b, int edgeSearchOffset = 0)
         {
+            // if it is a zero length line
             if (a.Equals(b))
             {
                 return;
             }
+            // test to see if this line already exists
+            for (int i = edgeSearchOffset; i < Edges.Count; i += 2)
+            {
+                var existingA = Vertexes[Edges[i].vertexIndex];
+                var existingB = Vertexes[Edges[i+1].vertexIndex];
+                if (a.Equals(existingA) && b.Equals(existingB) || b.Equals(existingA) && a.Equals(existingB))
+                {
+                    return;
+                }
+            }            
             // test to see if this line causes any existing lines to be split
             // only do half of the edges
             for (int i = edgeSearchOffset; i < Edges.Count; i+=2)

@@ -7,14 +7,22 @@ namespace Uded
     [Serializable]
     public class Face
     {
+        public float floorHeight = 0f;
+        public float ceilingHeight = 6f;
         public List<int> Edges = new List<int>();
         public bool clockwise;
         public List<int> InteriorFaces = new List<int>();
+
+        public void CopyFaceValues(Face copyFrom)
+        {
+            floorHeight = copyFrom.floorHeight;
+            ceilingHeight = copyFrom.ceilingHeight;
+        }
     }
     [Serializable]
     public class HalfEdge
     {
-        public int face;
+        public int face = -1;
         public int vertexIndex;
         public int nextId;
         public int prevId;

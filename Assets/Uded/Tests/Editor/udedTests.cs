@@ -31,5 +31,25 @@ namespace Uded
             // faces are doubled when we are on interiors
             Assert.That(_uded.Faces.Count, Is.EqualTo(4));
         }
+        [Test]
+        public void RebuildDoesntClearExistingFaceData()
+        {
+            _uded.AddRect(new Vertex(0,0), new Vertex(2,0), new Vertex(2,2), new Vertex(0,2));
+            _uded.Rebuild();
+            _uded.Faces[0].floorHeight = 2;
+            _uded.AddRect(new Vertex(2,2), new Vertex(4,2), new Vertex(4,4), new Vertex(2,4));
+            _uded.Rebuild();
+            Assert.That(_uded.Faces[0].floorHeight, Is.EqualTo(2));
+        }
+        [Test]
+        public void AddLineAlongExistingEdge()
+        {
+            // adding lines that exist along existing lines is currently broken
+            _uded.AddRect(new Vertex(0,0), new Vertex(2,0), new Vertex(2,2), new Vertex(0,2));
+            _uded.Rebuild();
+            _uded.AddLine(new Vertex(1,0), new Vertex(3,0));
+            _uded.Rebuild();
+            Assert.That(_uded.Faces.Count, Is.EqualTo(2));
+        }
     }
 }

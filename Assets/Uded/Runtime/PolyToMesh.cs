@@ -2,6 +2,8 @@
 using System.Collections.Generic;
 using System.Linq;
 using TriangleNet.Geometry;
+using UnityEngine.Analytics;
+
 // alternately could use this
 // https://github.com/speps/LibTessDotNet
 namespace Uded
@@ -33,7 +35,6 @@ namespace Uded
 				indexMarker++;
 			}
 
-			//for (int i = face.InteriorFaces.Count-1; i >= 0; i--)
 			for (int i = 0; i < face.InteriorFaces.Count; i++)
 			{
 				var interiorFace = faces[face.InteriorFaces[i]];
@@ -72,7 +73,7 @@ namespace Uded
 			Mesh mesh = new Mesh();
 			mesh.name = "sector mesh";
 			mesh.hideFlags = HideFlags.HideAndDontSave;
-			mesh.subMeshCount = 2;
+			mesh.subMeshCount = 3;
 			vertices = new List<Vector3>();
 			normals = new List<Vector3>();
 			uv = new List<Vector2>();
@@ -80,11 +81,12 @@ namespace Uded
 			TriangleNet.Data.Vertex[] tVertices = tmesh.Vertices.ToArray();
 			int[] floorTri = new int[tmesh.Triangles.Count() * 3];
 			int[] ceilingTri = new int[tmesh.Triangles.Count() * 3];
+			List<int> wallTri = new List<int>();
 
 			// add the floor vertices
 			for (int i = 0; i < tVertices.Length; i++)
 			{
-				vertices.Add(new Vector3((float) tVertices[i].X, 0, (float) tVertices[i].Y));
+				vertices.Add(new Vector3((float) tVertices[i].X, face.floorHeight, (float) tVertices[i].Y));
 				uv.Add(new Vector2((float) tVertices[i].X, (float) tVertices[i].Y));
 				normals.Add(Vector3.up.normalized);
 			}
@@ -92,11 +94,10 @@ namespace Uded
 			// add the ceiling vertices
 			for (int i = 0; i < tVertices.Length; i++)
 			{
-				vertices.Add(new Vector3((float) tVertices[i].X, 6f, (float) tVertices[i].Y));
+				vertices.Add(new Vector3((float) tVertices[i].X, face.ceilingHeight, (float) tVertices[i].Y));
 				uv.Add(new Vector2((float) tVertices[i].X, (float) tVertices[i].Y));
 				normals.Add(Vector3.down.normalized);
 			}
-
 			// TODO: needed for the picking, will get back to this
 			// if (face.floorTriangles == null)
 			// 	face.floorTriangles = new List<int>();
@@ -118,6 +119,25 @@ namespace Uded
 				ceilingTri[1 + i * 3] = tmesh.Triangles.ElementAt(i).P1 + vertices.Count() / 2;
 				ceilingTri[2 + i * 3] = tmesh.Triangles.ElementAt(i).P2 + vertices.Count() / 2;
 			}
+			// add the walls!
+			for (int edgeIndex = 0; edgeIndex < face.Edges.Count; edgeIndex++)
+			{
+				var edge = edges[face.Edges[edgeIndex]];
+				Vector2 pointA = uded.EdgeVertex(edge);
+				Vector2 pointB = uded.EdgeVertex(uded.GetTwin(face.Edges[edgeIndex]));
+				// if the backface is shared with another counterclockwise face, then skip
+				// after drawing ledges
+				var otherFace = faces[uded.GetTwin(face.Edges[edgeIndex]).face];
+				if (!otherFace.clockwise)
+				{
+					if(otherFace.floorHeight > face.floorHeight)
+						AddWall(pointA, pointB, face.floorHeight, otherFace.floorHeight, vertices, uv, wallTri, normals);
+					if(otherFace.ceilingHeight < face.ceilingHeight)
+						AddWall(pointA, pointB, otherFace.ceilingHeight, face.ceilingHeight, vertices, uv, wallTri, normals);
+					continue;
+				}
+				AddWall(pointA, pointB, face.floorHeight, face.ceilingHeight, vertices, uv, wallTri, normals);
+			}
 			//
 			// // TODO: needded for the picking, get back to this
 			// /**/
@@ -138,7 +158,8 @@ namespace Uded
 
 			mesh.SetIndices(floorTri, MeshTopology.Triangles, 0);
 			mesh.SetIndices(ceilingTri, MeshTopology.Triangles, 1);
-			mesh.subMeshCount = 2;
+			mesh.SetIndices(wallTri, MeshTopology.Triangles, 2);
+			mesh.subMeshCount = 3;
 			mesh.RecalculateBounds();
 			// TODO: support walls
 			// mesh.subMeshCount = 2 + wallIndexes.Count();
@@ -161,6 +182,35 @@ namespace Uded
 
 			return mesh;
 
+		}
+
+		private static void AddWall(Vector2 pointA, Vector2 pointB, float floorHeight, float ceilingHeight, List<Vector3> vertices, List<Vector2> uv,
+			List<int> wallTri, List<Vector3> normals)
+		{
+			var size = (pointA - pointB).magnitude;
+			var height = ceilingHeight - floorHeight;
+			int startIndex = vertices.Count;
+			vertices.Add(new Vector3(pointA.x, floorHeight, pointA.y));
+			vertices.Add(new Vector3(pointB.x, floorHeight, pointB.y));
+			vertices.Add(new Vector3(pointA.x, ceilingHeight, pointA.y));
+			vertices.Add(new Vector3(pointB.x, ceilingHeight, pointB.y));
+
+			// bull shit for uvs
+			uv.Add(new Vector2(0, 0));
+			uv.Add(new Vector2(size, 0));
+			uv.Add(new Vector2(0, height));
+			uv.Add(new Vector2(size, height));
+
+			wallTri.Add(startIndex);
+			wallTri.Add(startIndex + 1);
+			wallTri.Add(startIndex + 2);
+			wallTri.Add(startIndex + 3);
+			wallTri.Add(startIndex + 2);
+			wallTri.Add(startIndex + 1);
+			normals.Add(Vector3.up.normalized);
+			normals.Add(Vector3.up.normalized);
+			normals.Add(Vector3.up.normalized);
+			normals.Add(Vector3.up.normalized);
 		}
 	}	
 }
