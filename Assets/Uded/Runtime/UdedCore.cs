@@ -14,6 +14,7 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEditor.Graphs;
 using UnityEngine;
+using UnityEditor;
 
 namespace Uded
 {
@@ -29,9 +30,16 @@ namespace Uded
         public bool displayDebug;
         public bool displayEdges;
         public List<GameObject> childObjects = new List<GameObject>();
-
+        
         public void OnEnable()
         {
+            Rebuild();
+            Undo.undoRedoPerformed += MyUndoCallback;
+        }
+        void MyUndoCallback()
+        {
+            // code for the action to take on Undo
+            RemoveAllFacesAndMeshes();
             Rebuild();
         }
 
@@ -40,9 +48,9 @@ namespace Uded
             Vertexes = new List<Vertex>();
             Edges = new List<HalfEdge>();
             Faces = new List<Face>();
-            foreach (var childObject in childObjects)
+            for (int i = transform.childCount-1; i>=0; i--)
             {
-                DestroyImmediate(childObject);
+                DestroyImmediate(transform.GetChild(i).gameObject);
             }
         }
         
@@ -73,8 +81,13 @@ namespace Uded
             Debug.DrawLine(Vertexes[Edges[edgeIndex].vertexIndex], Vertexes[GetTwin(edgeIndex).vertexIndex], color, duration);
         }
 
-        public void ForceRebuild()
+        public void RemoveAllFacesAndMeshes()
         {
+            for (int i = transform.childCount-1; i>=0; i--)
+            {
+                DestroyImmediate(transform.GetChild(i).gameObject);
+            }
+            Faces.Clear();
             foreach (var edge in Edges)
             {
                 edge.face = -1;

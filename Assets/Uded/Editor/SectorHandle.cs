@@ -9,6 +9,7 @@ namespace Uded
         public int controlId { get; private set; }
         private bool selected;
         private bool hovered;
+        public float offsetAmount;
         public Vector3 DrawHandle(Vector3 position, float size)
         {
             return DrawHandle(EditorGUIUtility.GetControlID(sectorHandle, FocusType.Keyboard), position, size);
@@ -20,7 +21,7 @@ namespace Uded
             selected = GUIUtility.hotControl == controlId || GUIUtility.keyboardControl == controlId;
             hovered = HandleUtility.nearestControl == controlId;
             var e = Event.current;
-            var offset = Vector3.up*0.5f;
+            var offset = Vector3.up*offsetAmount;
             var offsetHandle = position+offset;
             switch (e.type)
             {
@@ -64,8 +65,6 @@ namespace Uded
                     verts[2] = drawposition - (vector3_1 + vector3_2)*handleSize*0.5f;
                     verts[3] = drawposition - (vector3_1 - vector3_2)*handleSize*0.5f;
                     Handles.DrawSolidRectangleWithOutline(verts, Color.white, Color.black);
-
-
                     break ;
                 case EventType.Layout:
                     if (e.type == EventType.Layout)
