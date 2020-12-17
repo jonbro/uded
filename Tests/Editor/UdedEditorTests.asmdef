@@ -3,7 +3,7 @@
     "references": [
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner",
-        "UdedRuntime"
+        "jonbro.uded.Runtime"
     ],
     "includePlatforms": [
         "Editor"

@@ -284,7 +284,7 @@ namespace Uded
                 go.transform.SetParent(transform);
                 go.AddComponent<MeshFilter>().sharedMesh = PolyToMesh.GetMeshFromFace(i, this, Edges, Faces);
                 go.AddComponent<MeshRenderer>().sharedMaterials = new[] {DefaultMat, DefaultMat, DefaultMat};
-                // go.hideFlags = HideFlags.HideAndDontSave;
+                go.hideFlags = HideFlags.HideAndDontSave;
                 childObjects.Add(go);
             }
         }
