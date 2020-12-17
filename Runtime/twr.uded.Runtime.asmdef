@@ -1,16 +1,12 @@
 {
-    "name": "jonbro.uded.Editor",
-    "references": [
-        "GUID:c3825518b4323254ab4d2210c6a69367"
-    ],
-    "includePlatforms": [
-        "Editor"
-    ],
+    "name": "twr.uded.Runtime",
+    "references": [],
+    "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,
     "overrideReferences": false,
     "precompiledReferences": [],
-    "autoReferenced": false,
+    "autoReferenced": true,
     "defineConstraints": [],
     "versionDefines": [],
     "noEngineReferences": false

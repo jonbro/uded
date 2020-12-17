@@ -39,7 +39,7 @@ namespace Uded
             {
                 text = "Sector Tool",
                 tooltip = "Sector Tool",
-                image = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Uded/Editor/Editor Resources/SectorTool.png")
+                image = AssetDatabase.LoadAssetAtPath<Texture2D>("Packages/com.twr.uded/Editor/Editor Resources/SectorTool.png")
             };
             _floorHandle.offsetAmount = 0.5f;
             _ceilingHandle.offsetAmount = -0.5f;
@@ -149,7 +149,7 @@ namespace Uded
             {
                 text = "Add Rect",
                 tooltip = "Add Rect",
-                image = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Uded/Editor/Editor Resources/RectTool.png")
+                image = AssetDatabase.LoadAssetAtPath<Texture2D>("Packages/com.twr.uded/Editor/Editor Resources/RectTool.png")
             };
 
         }
@@ -230,7 +230,7 @@ namespace Uded
             {
                 text = "Add Line",
                 tooltip = "Add Line",
-                image = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Uded/Editor/Editor Resources/LineTool.png")
+                image = AssetDatabase.LoadAssetAtPath<Texture2D>("Packages/com.twr.uded/Editor/Editor Resources/LineTool.png")
             };
         }
 

@@ -1,9 +1,10 @@
 {
     "name": "UdedEditorTests",
     "references": [
-        "UnityEngine.TestRunner",
-        "UnityEditor.TestRunner",
-        "jonbro.uded.Runtime"
+        "GUID:27619889b8ba8c24980f49ee34dbb44a",
+        "GUID:0acc523941302664db1f4e527237feb3",
+        "GUID:bb7214175de93f941bddebfe37aef6d4",
+        "GUID:c3825518b4323254ab4d2210c6a69367"
     ],
     "includePlatforms": [
         "Editor"

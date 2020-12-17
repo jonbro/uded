@@ -1,14 +1,3 @@
-/*
- * todo
- * - nothing is serialized :/
- * - undo support
- * - grid snapping
- * - walls
- * - sector height control
- * - switch half edge to use indexes
- * - switch 
- * - faces are sectors (materials & heights)
- */
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -35,6 +24,11 @@ namespace Uded
         {
             Rebuild();
             Undo.undoRedoPerformed += MyUndoCallback;
+            if (DefaultMat == null)
+            {
+                // need to confirm this works in urp / hdrp - eventually
+                DefaultMat = new Material(Shader.Find("Standard"));
+            }
         }
         void MyUndoCallback()
         {
