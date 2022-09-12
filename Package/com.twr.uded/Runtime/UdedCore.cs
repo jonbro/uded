@@ -212,7 +212,7 @@ namespace Uded
                             exteriorFaceEdgeIndex < faceExterior.Edges.Count;
                             exteriorFaceEdgeIndex++)
                         {
-                            var edge = Edges[exteriorFaceEdgeIndex];
+                            var edge = Edges[faceExterior.Edges[exteriorFaceEdgeIndex]];
                             if (GetTwin(exteriorFaceEdgeIndex).face == testingFaceIndex)
                                 break;
                             if (RayLineIntersection(testRay, EdgeVertex(edge), EdgeVertex(edge.nextId)) != null)
@@ -225,7 +225,7 @@ namespace Uded
                                 {
                                     var lastValue = containingFaces[edge.face];
                                     containingFaces[edge.face] =
-                                        new ValueTuple<int, int>(lastValue.Item1++, lastValue.Item2);
+                                        new ValueTuple<int, int>(++lastValue.Item1, lastValue.Item2);
                                 }
                             }
                         }
