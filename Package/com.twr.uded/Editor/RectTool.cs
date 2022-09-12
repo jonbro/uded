@@ -18,7 +18,8 @@ namespace Uded
             return new Vector3(Mathf.Round(input.x), Mathf.Round(input.y), Mathf.Round(input.z));
         }
     }
-        [EditorTool("Sector Edit", typeof(UdedCore))]
+    
+    [EditorTool("Sector Edit", typeof(UdedCore))]
     public class SectorEditTool : EditorTool
     {
         GUIContent m_IconContent;
@@ -153,16 +154,18 @@ namespace Uded
             };
 
         }
-
         void OnDisable()
         {
             ToolManager.activeToolChanged -= ActiveToolDidChange;
+            drawingStage = 0;
         }
         void ActiveToolDidChange()
         {
             if (!ToolManager.IsActiveTool(this))
+            {
+                drawingStage = 0;
                 return;
-
+            }
         }
         static readonly int kDrawRectModeHash		= "DrawRectMode".GetHashCode();
 
@@ -182,7 +185,24 @@ namespace Uded
                 Handles.DrawSolidDisc(intersectionPoint, Vector3.up, 0.1f);
                 var defaultID = GUIUtility.GetControlID(kDrawRectModeHash, FocusType.Keyboard, dragArea);
                 HandleUtility.AddDefaultControl(defaultID);
-                if (evt.type == EventType.MouseDown)
+                if (evt.type == EventType.Repaint && drawingStage == 1)
+                {
+                    // draw the rect
+                    Handles.DrawSolidDisc(intersectionPoint, Vector3.up, 0.1f);
+                    var rectPoints = new Vector3[]
+                    {
+                        new Vector3(firstPoint.x, firstPoint.y, firstPoint.z),
+                        new Vector3(intersectionPoint.x, firstPoint.y, firstPoint.z),
+                        new Vector3(intersectionPoint.x, firstPoint.y, firstPoint.z),
+                        new Vector3(intersectionPoint.x, firstPoint.y, intersectionPoint.z),
+                        new Vector3(intersectionPoint.x, firstPoint.y, intersectionPoint.z),
+                        new Vector3(firstPoint.x, firstPoint.y, intersectionPoint.z),
+                        new Vector3(firstPoint.x, firstPoint.y, intersectionPoint.z),
+                        new Vector3(firstPoint.x, firstPoint.y, firstPoint.z),
+                    };
+                    Handles.DrawDottedLines(rectPoints, 1);
+                }
+                if (evt.type == EventType.MouseDown && evt.button == 0)
                 {
                     if (drawingStage == 0)
                     {
@@ -242,7 +262,6 @@ namespace Uded
         {
             if (!ToolManager.IsActiveTool(this))
                 return;
-
         }
  
         public override void OnToolGUI(EditorWindow window)
