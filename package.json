@@ -1,0 +1,14 @@
+{
+  "description": "sector based level editor",
+  "displayName": "Uded",
+  "name": "com.twr.uded",
+  "keywords": [
+    "level design",
+    "world building",
+    "Sector",
+    "doom"
+  ],
+  "unity": "2020.2",
+  "version": "0.0.1-preview",
+  "type": "library"
+}
