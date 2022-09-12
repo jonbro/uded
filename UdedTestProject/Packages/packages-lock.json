@@ -1,9 +1,9 @@
 {
   "dependencies": {
     "com.twr.uded": {
-      "version": "file:com.twr.uded",
+      "version": "file:../../Package/com.twr.uded",
       "depth": 0,
-      "source": "embedded",
+      "source": "local",
       "dependencies": {}
     },
     "com.unity.2d.sprite": {
