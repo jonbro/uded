@@ -206,7 +206,7 @@ namespace Uded
                     {
                         var faceExterior = Faces[j];
                         count++;
-                        if (face == faceExterior || faceExterior.clockwise)
+                        if (testingFaceIndex == j || faceExterior.clockwise)
                             continue;
                         for (int exteriorFaceEdgeIndex = 0;
                             exteriorFaceEdgeIndex < faceExterior.Edges.Count;

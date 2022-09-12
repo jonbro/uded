@@ -63,15 +63,16 @@ namespace Uded
                 var forward = (Vector3) uded.EdgeVertex(uded.GetTwin(i)) - (Vector3) uded.EdgeVertex(edge);
                 var forwardRot = Quaternion.LookRotation(forward);
                 var arrowRot = forwardRot * Quaternion.AngleAxis(190, Vector3.up);
-                Vector3 left = forwardRot * Vector3.left * 0.02f;
+                var center = Vector3.Lerp((Vector3) (Vector3) uded.EdgeVertex(edge),
+                    (Vector3) uded.EdgeVertex(uded.GetTwin(i)), 0.5f);
+                var size = HandleUtility.GetHandleSize(center)*0.05f;
+                Vector3 left = forwardRot * Vector3.left * size;
                 Handles.DrawLine((Vector3) (Vector3) uded.EdgeVertex(edge) + left,
                     (Vector3) uded.EdgeVertex(uded.GetTwin(i)) + left);
-                var center = Vector3.Lerp((Vector3) (Vector3) uded.EdgeVertex(edge) + left,
-                    (Vector3) uded.EdgeVertex(uded.GetTwin(i)) + left, 0.5f);
                 // arrow displaying orientation
                 Handles.DrawLine((Vector3) uded.EdgeVertex(uded.GetTwin(i)) + left,
                     (Vector3) uded.EdgeVertex(uded.GetTwin(i)) + left + arrowRot * Vector3.forward * 0.1f);
-                Handles.Label(center, "" + count++);
+                Handles.Label(center+ left*3, "" + count++);
                 displayedEdges.Add(edge);
             }
 

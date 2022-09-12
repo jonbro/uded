@@ -119,6 +119,17 @@ namespace Uded
 				ceilingTri[1 + i * 3] = tmesh.Triangles.ElementAt(i).P1 + vertices.Count() / 2;
 				ceilingTri[2 + i * 3] = tmesh.Triangles.ElementAt(i).P2 + vertices.Count() / 2;
 			}
+			// build interiors map
+			// this could be memoized elsewhere
+			var interiors = new Dictionary<int, int>();
+			for (int i = 0; i < faces.Count; i++)
+			{
+				var fExterior = faces[i];
+				foreach (var interior in fExterior.InteriorFaces)
+				{
+					interiors[interior] = i;
+				}
+			}
 			// add the walls!
 			for (int edgeIndex = 0; edgeIndex < face.Edges.Count; edgeIndex++)
 			{
@@ -127,13 +138,20 @@ namespace Uded
 				Vector2 pointB = uded.EdgeVertex(uded.GetTwin(face.Edges[edgeIndex]));
 				// if the backface is shared with another counterclockwise face, then skip
 				// after drawing ledges
-				var otherFace = faces[uded.GetTwin(face.Edges[edgeIndex]).face];
+				var otherFaceIndex = uded.GetTwin(face.Edges[edgeIndex]).face;
+				var otherFace = faces[otherFaceIndex];
+				if (interiors.ContainsKey(otherFaceIndex))
+					otherFace = faces[interiors[otherFaceIndex]];
 				if (!otherFace.clockwise)
 				{
 					if(otherFace.floorHeight > face.floorHeight)
 						AddWall(pointA, pointB, face.floorHeight, otherFace.floorHeight, vertices, uv, wallTri, normals);
+					else
+						AddWall(pointB, pointA, otherFace.floorHeight, face.floorHeight, vertices, uv, wallTri, normals);
 					if(otherFace.ceilingHeight < face.ceilingHeight)
 						AddWall(pointA, pointB, otherFace.ceilingHeight, face.ceilingHeight, vertices, uv, wallTri, normals);
+					else
+						AddWall(pointB, pointA, face.ceilingHeight, otherFace.ceilingHeight, vertices, uv, wallTri, normals);
 					continue;
 				}
 				AddWall(pointA, pointB, face.floorHeight, face.ceilingHeight, vertices, uv, wallTri, normals);

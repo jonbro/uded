@@ -30,7 +30,22 @@ namespace Uded
             _uded.Rebuild();
             // faces are doubled when we are on interiors
             Assert.That(_uded.Faces.Count, Is.EqualTo(4));
+            // confirm that the interior face is set correctly
+            Assert.AreEqual(1, _uded.Faces[0].InteriorFaces.Count);
+            Assert.AreEqual(3, _uded.Faces[0].InteriorFaces[0]);
         }
+        
+        [Test]
+        public void EdgeRayIntersectionCorrect()
+        {
+            _uded.AddRect(new Vertex(0, 0), new Vertex(5,0), new Vertex(5,5), new Vertex(0,5));
+            _uded.Rebuild();
+            _uded.AddRect(new Vertex(4,1), new Vertex(6,1), new Vertex(6,3), new Vertex(4,3));
+            _uded.Rebuild();
+            _uded.AddRect(new Vertex(1,1), new Vertex(2,1), new Vertex(2,3), new Vertex(1,3));
+            _uded.Rebuild();
+        }
+        
         [Test]
         public void RebuildDoesntClearExistingFaceData()
         {

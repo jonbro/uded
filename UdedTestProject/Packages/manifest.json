@@ -44,5 +44,8 @@
     "com.unity.modules.wind": "1.0.0",
     "com.unity.modules.xr": "1.0.0",
     "com.twr.uded": "file:../../Package/com.twr.uded"
-  }
+  },
+  "testables": [
+    "com.twr.uded"
+  ]
 }
