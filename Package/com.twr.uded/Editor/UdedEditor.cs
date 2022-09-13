@@ -43,6 +43,12 @@ namespace Uded
             }
         }
 
+        enum WallSegment
+        {
+            lower,
+            mid,
+            upper
+        }
         void OnSceneGUI()
         {
             // get the chosen game object
@@ -66,7 +72,6 @@ namespace Uded
                     var center = Vector3.Lerp(uded.EdgeVertex(edge), uded.EdgeVertex(edge.nextId), 0.5f);
                     var left = forwardRot * Vector3.left;
                     var wallPlane = new Plane(left, center);
-                    Handles.DrawLine(center, center+left);
                     // var floorPlane = new Plane(Vector3.up, new Vector3(0,face.floorHeight, 0));
                     Ray ray = HandleUtility.GUIPointToWorldRay (Event.current.mousePosition);
                     if(Vector3.Dot(ray.direction, left)>0)
@@ -80,24 +85,49 @@ namespace Uded
                             new Vector2(ray.direction.x, ray.direction.z));
                         // if the back face is clockwise, then that means it is a centerwall (i.e. the backface is an empty sector)
                         var backface = uded.Faces[uded.GetTwin(i).face];
+                        WallSegment seg = WallSegment.mid;
                         if (enterPoint.y > face.ceilingHeight || enterPoint.y < face.floorHeight)
                         {
                             continue;
+                        }
+
+                        if (!backface.clockwise)
+                        {
+                            if (enterPoint.y < backface.floorHeight)
+                            {
+                                seg = WallSegment.lower;
+                            }
+                            else if (enterPoint.y > backface.ceilingHeight)
+                            {
+                                seg = WallSegment.upper;
+                            }
+                            else
+                            {
+                                continue;
+                            }
                         }
                         if (UdedCore.RayLineIntersection(r, uded.EdgeVertex(edge), uded.EdgeVertex(uded.GetTwin(i))) !=
                             null)
                         {
                             // outline the current edge
                             Handles.color = Color.green;
-                            if (backface.clockwise)
+                            var floorPos = face.floorHeight*Vector3.up;
+                            var ceilPos = face.ceilingHeight*Vector3.up;
+
+                            switch (seg)
                             {
-                                var floorPos = face.floorHeight*Vector3.up;
-                                var ceilPos = face.ceilingHeight*Vector3.up;
-                                Handles.DrawLine(uded.EdgeVertex(i)+floorPos,uded.EdgeVertex(uded.GetTwin(i))+floorPos);
-                                Handles.DrawLine(uded.EdgeVertex(i)+ceilPos,uded.EdgeVertex(i)+floorPos);
-                                Handles.DrawLine(uded.EdgeVertex(uded.GetTwin(i))+floorPos,uded.EdgeVertex(uded.GetTwin(i))+ceilPos);
-                                Handles.DrawLine(uded.EdgeVertex(i)+ceilPos,uded.EdgeVertex(uded.GetTwin(i))+ceilPos);
+                                case WallSegment.lower:
+                                    ceilPos = backface.floorHeight*Vector3.up;
+                                    break;
+                                case WallSegment.upper:
+                                    floorPos = backface.ceilingHeight*Vector3.up;
+                                    break;
                             }
+                            Handles.DrawLine(uded.EdgeVertex(i)+floorPos,uded.EdgeVertex(uded.GetTwin(i))+floorPos);
+                            Handles.DrawLine(uded.EdgeVertex(i)+ceilPos,uded.EdgeVertex(i)+floorPos);
+                            Handles.DrawLine(uded.EdgeVertex(uded.GetTwin(i))+floorPos,uded.EdgeVertex(uded.GetTwin(i))+ceilPos);
+                            Handles.DrawLine(uded.EdgeVertex(i)+ceilPos,uded.EdgeVertex(uded.GetTwin(i))+ceilPos);
+
                             HandleUtility.Repaint();
                         }
                     }
