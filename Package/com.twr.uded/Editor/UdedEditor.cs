@@ -42,13 +42,13 @@ namespace Uded
                 uded.FixLink(fixLink);
             }
         }
-
         enum WallSegment
         {
             lower,
             mid,
             upper
         }
+
         void OnSceneGUI()
         {
             // get the chosen game object
@@ -58,82 +58,51 @@ namespace Uded
                 DisplayDebug(uded);
             // highlight the currently hovered wall
             Event e = Event.current;
-            if (e.type == EventType.Repaint)
+            if (e.type == EventType.Repaint || e.type == EventType.Layout)
             {
-                var hoveredWall = -1;
-                for (int i = 0; i < uded.Edges.Count; i++)
+                var nearest = GetNearestLevelElement(uded);
+                if (nearest.t is ElementType.wall_lower or ElementType.wall_mid or ElementType.wall_upper)
                 {
-                    var edge = uded.Edges[i];
-                    var face = uded.Faces[edge.face];
-                    if(face.clockwise)
-                        continue;
-                    var forward = (Vector3) uded.EdgeVertex(uded.GetTwin(i)) - (Vector3) uded.EdgeVertex(edge);
-                    var forwardRot = Quaternion.LookRotation(forward);
-                    var center = Vector3.Lerp(uded.EdgeVertex(edge), uded.EdgeVertex(edge.nextId), 0.5f);
-                    var left = forwardRot * Vector3.left;
-                    var wallPlane = new Plane(left, center);
-                    // var floorPlane = new Plane(Vector3.up, new Vector3(0,face.floorHeight, 0));
-                    Ray ray = HandleUtility.GUIPointToWorldRay (Event.current.mousePosition);
-                    if(Vector3.Dot(ray.direction, left)>0)
-                        continue;
-                    var rayHit = wallPlane.Raycast(ray, out var enter);
-                    if(rayHit)
+                    var face = uded.Faces[uded.Edges[nearest.index].face];
+                    var backface = uded.Faces[uded.GetTwin(nearest.index).face];
+                    var edgeIndex = nearest.index;
+                    // outline the current edge
+                    Handles.color = Color.green;
+                    var floorPos = face.floorHeight*Vector3.up;
+                    var ceilPos = face.ceilingHeight*Vector3.up;
+
+                    switch (nearest.t)
                     {
-                        var enterPoint = ray.origin+ray.direction*enter;
-                        // flatten the ray to 2d
-                        var r = new Ray2D(new Vector2(ray.origin.x, ray.origin.z),
-                            new Vector2(ray.direction.x, ray.direction.z));
-                        // if the back face is clockwise, then that means it is a centerwall (i.e. the backface is an empty sector)
-                        var backface = uded.Faces[uded.GetTwin(i).face];
-                        WallSegment seg = WallSegment.mid;
-                        if (enterPoint.y > face.ceilingHeight || enterPoint.y < face.floorHeight)
-                        {
-                            continue;
-                        }
-
-                        if (!backface.clockwise)
-                        {
-                            if (enterPoint.y < backface.floorHeight)
-                            {
-                                seg = WallSegment.lower;
-                            }
-                            else if (enterPoint.y > backface.ceilingHeight)
-                            {
-                                seg = WallSegment.upper;
-                            }
-                            else
-                            {
-                                continue;
-                            }
-                        }
-                        if (UdedCore.RayLineIntersection(r, uded.EdgeVertex(edge), uded.EdgeVertex(uded.GetTwin(i))) !=
-                            null)
-                        {
-                            // outline the current edge
-                            Handles.color = Color.green;
-                            var floorPos = face.floorHeight*Vector3.up;
-                            var ceilPos = face.ceilingHeight*Vector3.up;
-
-                            switch (seg)
-                            {
-                                case WallSegment.lower:
-                                    ceilPos = backface.floorHeight*Vector3.up;
-                                    break;
-                                case WallSegment.upper:
-                                    floorPos = backface.ceilingHeight*Vector3.up;
-                                    break;
-                            }
-                            Handles.DrawLine(uded.EdgeVertex(i)+floorPos,uded.EdgeVertex(uded.GetTwin(i))+floorPos);
-                            Handles.DrawLine(uded.EdgeVertex(i)+ceilPos,uded.EdgeVertex(i)+floorPos);
-                            Handles.DrawLine(uded.EdgeVertex(uded.GetTwin(i))+floorPos,uded.EdgeVertex(uded.GetTwin(i))+ceilPos);
-                            Handles.DrawLine(uded.EdgeVertex(i)+ceilPos,uded.EdgeVertex(uded.GetTwin(i))+ceilPos);
-
-                            HandleUtility.Repaint();
-                        }
+                        case ElementType.wall_lower:
+                            ceilPos = backface.floorHeight*Vector3.up;
+                            break;
+                        case ElementType.wall_upper:
+                            floorPos = backface.ceilingHeight*Vector3.up;
+                            break;
+                    }
+                    Handles.DrawLine(uded.EdgeVertex(edgeIndex)+floorPos,uded.EdgeVertex(uded.GetTwin(edgeIndex))+floorPos);
+                    Handles.DrawLine(uded.EdgeVertex(edgeIndex)+ceilPos,uded.EdgeVertex(edgeIndex)+floorPos);
+                    Handles.DrawLine(uded.EdgeVertex(uded.GetTwin(edgeIndex))+floorPos,uded.EdgeVertex(uded.GetTwin(edgeIndex))+ceilPos);
+                    Handles.DrawLine(uded.EdgeVertex(edgeIndex)+ceilPos,uded.EdgeVertex(uded.GetTwin(edgeIndex))+ceilPos);
+                    SceneView.RepaintAll();
+                }
+                else if(nearest.t is ElementType.ceiling or ElementType.floor)
+                {
+                    var face = uded.Faces[nearest.index];
+                    for (int j = 0; j < face.Edges.Count; j++)
+                    {
+                        var edgeIndex = face.Edges[j];
+                        var edge = uded.Edges[edgeIndex];
+                        Handles.color = Color.green;
+                        var twin = uded.GetTwin(edgeIndex);
+                        var thisVert = uded.EdgeVertex(edge);
+                        var nextVert = uded.EdgeVertex(twin);
+                        var height = nearest.t == ElementType.ceiling ? face.ceilingHeight : face.floorHeight;
+                        Handles.DrawLine(new Vector3(thisVert.x, height, thisVert.y), new Vector3(nextVert.x, height, nextVert.y));
                     }
                 }
-
             }
+
 
             if (DragAndDrop.objectReferences.Length == 1 &&
                 DragAndDrop.objectReferences[0].GetType() == typeof(Material))
@@ -152,6 +121,118 @@ namespace Uded
             }
         }
 
+        public enum ElementType
+        {
+            wall_mid,
+            wall_lower,
+            wall_upper,
+            floor,
+            ceiling,
+            none
+        }
+    
+        public (ElementType t, int index) GetNearestLevelElement(UdedCore uded)
+        {
+            Ray ray = HandleUtility.GUIPointToWorldRay (Event.current.mousePosition);
+            var res = (t:ElementType.none, index:-1, distance:0.0);
+            for (int i = 0; i < uded.Edges.Count; i++)
+            {
+                var edge = uded.Edges[i];
+                var face = uded.Faces[edge.face];
+                if(face.clockwise)
+                    continue;
+                var forward = (Vector3) uded.EdgeVertex(uded.GetTwin(i)) - (Vector3) uded.EdgeVertex(edge);
+                var forwardRot = Quaternion.LookRotation(forward);
+                var center = Vector3.Lerp(uded.EdgeVertex(edge), uded.EdgeVertex(edge.nextId), 0.5f);
+                var left = forwardRot * Vector3.left;
+                var wallPlane = new Plane(left, center);
+                // var floorPlane = new Plane(Vector3.up, new Vector3(0,face.floorHeight, 0));
+                if(Vector3.Dot(ray.direction, left)>0)
+                    continue;
+                var rayHit = wallPlane.Raycast(ray, out var enter);
+                if(rayHit)
+                {
+                    var enterPoint = ray.origin+ray.direction*enter;
+                    // flatten the ray to 2d
+                    var r = new Ray2D(new Vector2(ray.origin.x, ray.origin.z),
+                        new Vector2(ray.direction.x, ray.direction.z));
+                    // if the back face is clockwise, then that means it is a center wall (i.e. the backface is an empty sector)
+                    var backface = uded.Faces[uded.GetTwin(i).face];
+                    var seg = ElementType.wall_mid;
+                    if (enterPoint.y > face.ceilingHeight || enterPoint.y < face.floorHeight)
+                    {
+                        continue;
+                    }
+
+                    if (!backface.clockwise)
+                    {
+                        if (enterPoint.y < backface.floorHeight)
+                        {
+                            seg = ElementType.wall_lower;
+                        }
+                        else if (enterPoint.y > backface.ceilingHeight)
+                        {
+                            seg = ElementType.wall_upper;
+                        }
+                        else
+                        {
+                            continue;
+                        }
+                    }
+                    if (UdedCore.RayLineIntersection(r, uded.EdgeVertex(edge), uded.EdgeVertex(uded.GetTwin(i))) !=
+                        null)
+                    {
+                        if (res.t == ElementType.none || enter < res.distance)
+                        {
+                            res.t = seg;
+                            res.index = i;
+                            res.distance = enter;
+                        }
+                    }
+                }
+            }
+            // test the floors / ceilings
+            for (int i = 0; i < uded.Faces.Count; i++)
+            {
+                var face = uded.Faces[i];
+                if(face.clockwise)
+                    continue;
+                // test floor
+                var floorPlane = new Plane(Vector3.up, new Vector3(0,face.floorHeight, 0));
+                var rayHit = floorPlane.Raycast(ray, out var enter);
+                if(rayHit)
+                {
+                    var enterPoint = ray.origin+ray.direction*enter;
+                    if (uded.PointInFace(new Vector2(enterPoint.x, enterPoint.z), i))
+                    {
+                        if(enter < res.distance || res.t == ElementType.none)
+                        {
+                            res.t = ElementType.floor;
+                            res.index = i;
+                            res.distance = enter;
+                        }
+                    }
+                }
+                // test ceiling
+                var ceilingPlane = new Plane(-Vector3.up, new Vector3(0,face.ceilingHeight, 0));
+                ray = HandleUtility.GUIPointToWorldRay (Event.current.mousePosition);
+                rayHit = ceilingPlane.Raycast(ray, out enter);
+                if(rayHit)
+                {
+                    var enterPoint = ray.origin+ray.direction*enter;
+                    if (uded.PointInFace(new Vector2(enterPoint.x, enterPoint.z), i))
+                    {
+                        if(enter < res.distance || res.t == ElementType.none)
+                        {
+                            res.t = ElementType.ceiling;
+                            res.index = i;
+                            res.distance = enter;
+                        }
+                    }
+                }
+            }
+            return (res.t, res.index);
+        }
         private static void DisplayDebug(UdedCore uded)
         {
             HashSet<HalfEdge> displayedEdges = new HashSet<HalfEdge>();
