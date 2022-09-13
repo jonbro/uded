@@ -12,7 +12,9 @@ namespace Uded
 
     public class UdedCore : MonoBehaviour
     {
-        public Material DefaultMat;
+        public Material FloorMat;
+        public Material CeilingMat;
+        public Material WallMat;
         public List<Vertex> Vertexes = new List<Vertex>();
         public List<HalfEdge> Edges = new List<HalfEdge>();
         public List<Face> Faces = new List<Face>();
@@ -24,10 +26,10 @@ namespace Uded
         {
             Rebuild();
             Undo.undoRedoPerformed += MyUndoCallback;
-            if (DefaultMat == null)
+            if (FloorMat == null)
             {
                 // need to confirm this works in urp / hdrp - eventually
-                DefaultMat = new Material(Shader.Find("Standard"));
+                FloorMat = new Material(Shader.Find("Standard"));
             }
         }
         void MyUndoCallback()
@@ -277,7 +279,8 @@ namespace Uded
                 var go = new GameObject("face " + i);
                 go.transform.SetParent(transform);
                 go.AddComponent<MeshFilter>().sharedMesh = PolyToMesh.GetMeshFromFace(i, this, Edges, Faces);
-                go.AddComponent<MeshRenderer>().sharedMaterials = new[] {DefaultMat, DefaultMat, DefaultMat};
+                
+                go.AddComponent<MeshRenderer>().sharedMaterials = new[] {FloorMat, CeilingMat, WallMat};
                 go.hideFlags = HideFlags.HideAndDontSave;
                 childObjects.Add(go);
             }
