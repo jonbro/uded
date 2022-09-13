@@ -9,10 +9,11 @@ namespace Uded
     {
         public float floorHeight = 0f;
         public float ceilingHeight = 6f;
-        public List<int> Edges = new List<int>();
+        public List<int> Edges = new();
         public bool clockwise;
-        public List<int> InteriorFaces = new List<int>();
-
+        public List<int> InteriorFaces = new();
+        public Material floorMat;
+        public Material ceilingMat;
         public void CopyFaceValues(Face copyFrom)
         {
             floorHeight = copyFrom.floorHeight;
@@ -36,7 +37,7 @@ namespace Uded
     {
         public Vector2 _value;
         public static implicit operator Vector2(Vertex v) => v._value;
-        public static implicit operator Vector3(Vertex v) => new Vector3(v._value.x, 0, v._value.y);
+        public static implicit operator Vector3(Vertex v) => new(v._value.x, 0, v._value.y);
 
         public Vertex(Vector2 v)
         {
@@ -51,6 +52,7 @@ namespace Uded
         {
             return new Vertex(value);
         }
+
 
         public bool Equals(Vertex b)
         {
@@ -68,5 +70,6 @@ namespace Uded
             get => _value.y;
             set => _value.y = value;
         }
+         
     }    
 }

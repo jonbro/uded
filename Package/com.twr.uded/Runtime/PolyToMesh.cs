@@ -11,9 +11,11 @@ namespace Uded
 	public class PolyToMesh
 	{
 		private float multiplier = 10000;
+		private static List<List<int>> wallIndexes = new();
 
 		public static Mesh GetMeshFromFace(int faceIndex, UdedCore uded, List<Uded.HalfEdge> edges, List<Uded.Face> faces)
 		{
+			wallIndexes.Clear();
 			var face = faces[faceIndex];
 			TriangleNet.Mesh tmesh = new TriangleNet.Mesh();
 
@@ -145,16 +147,16 @@ namespace Uded
 				if (!otherFace.clockwise)
 				{
 					if(otherFace.floorHeight > face.floorHeight)
-						AddWall(pointA, pointB, face.floorHeight, otherFace.floorHeight, vertices, uv, wallTri, normals);
+						AddWall(pointA, pointB, face.floorHeight, otherFace.floorHeight, vertices, uv, normals);
 					else
-						AddWall(pointB, pointA, otherFace.floorHeight, face.floorHeight, vertices, uv, wallTri, normals);
+						AddWall(pointB, pointA, otherFace.floorHeight, face.floorHeight, vertices, uv, normals);
 					if(otherFace.ceilingHeight < face.ceilingHeight)
-						AddWall(pointA, pointB, otherFace.ceilingHeight, face.ceilingHeight, vertices, uv, wallTri, normals);
+						AddWall(pointA, pointB, otherFace.ceilingHeight, face.ceilingHeight, vertices, uv, normals);
 					else
-						AddWall(pointB, pointA, face.ceilingHeight, otherFace.ceilingHeight, vertices, uv, wallTri, normals);
+						AddWall(pointB, pointA, face.ceilingHeight, otherFace.ceilingHeight, vertices, uv, normals);
 					continue;
 				}
-				AddWall(pointA, pointB, face.floorHeight, face.ceilingHeight, vertices, uv, wallTri, normals);
+				AddWall(pointA, pointB, face.floorHeight, face.ceilingHeight, vertices, uv, normals);
 			}
 			//
 			// // TODO: needded for the picking, get back to this
@@ -169,41 +171,36 @@ namespace Uded
 			// 	face.floorTriangles.Add(i);
 			// }
 			//
-			// List<List<int>> wallIndexes = new List<List<int>>();
 
 			mesh.vertices = vertices.ToArray();
 			mesh.normals = normals.ToArray();
 
+			mesh.subMeshCount = 2 + wallIndexes.Count;
 			mesh.SetIndices(floorTri, MeshTopology.Triangles, 0);
 			mesh.SetIndices(ceilingTri, MeshTopology.Triangles, 1);
-			mesh.SetIndices(wallTri, MeshTopology.Triangles, 2);
-			mesh.subMeshCount = 3;
+			var c = 2;
+			// todo: collapse these meshes? we basically have 1 mesh per wall, which is horrible
+			foreach (var wallIndexGroup in wallIndexes)
+			{
+				mesh.SetIndices(wallIndexGroup, MeshTopology.Triangles, c++);	
+			}
+			// mesh.SetIndices(wallTri, MeshTopology.Triangles, 2);
 			mesh.RecalculateBounds();
-			// TODO: support walls
-			// mesh.subMeshCount = 2 + wallIndexes.Count();
-			// /**/
-			// int wallCount = 2;
-			// foreach (List<int> wallTris in wallIndexes)
-			// {
-			// 	mesh.SetIndices(wallTris.ToArray(), MeshTopology.Triangles, wallCount);
-			//
-			// 	wallCount++;
-			// }
-
+			
 			mesh.RecalculateNormals();
 			mesh.uv = uv.ToArray();
 			mesh.uv2 = uv.ToArray();
 			TangentSolver.Solve(mesh);
+			
 			// if you want to support lightmapping
-	//		TODO: make this optional, because it is slow as fuck
-	//		Unwrapping.GenerateSecondaryUVSet (mesh);
+			// TODO: make this optional, because it is somewhat slow
+			// Unwrapping.GenerateSecondaryUVSet (mesh);
 
 			return mesh;
-
 		}
 
 		private static void AddWall(Vector2 pointA, Vector2 pointB, float floorHeight, float ceilingHeight, List<Vector3> vertices, List<Vector2> uv,
-			List<int> wallTri, List<Vector3> normals)
+			List<Vector3> normals)
 		{
 			var size = (pointA - pointB).magnitude;
 			var height = ceilingHeight - floorHeight;
@@ -218,13 +215,15 @@ namespace Uded
 			uv.Add(new Vector2(size, 0));
 			uv.Add(new Vector2(0, height));
 			uv.Add(new Vector2(size, height));
-
+			//
+			var wallTri = new List<int>();
 			wallTri.Add(startIndex);
 			wallTri.Add(startIndex + 1);
 			wallTri.Add(startIndex + 2);
 			wallTri.Add(startIndex + 3);
 			wallTri.Add(startIndex + 2);
 			wallTri.Add(startIndex + 1);
+			wallIndexes.Add(wallTri);
 			normals.Add(Vector3.up.normalized);
 			normals.Add(Vector3.up.normalized);
 			normals.Add(Vector3.up.normalized);

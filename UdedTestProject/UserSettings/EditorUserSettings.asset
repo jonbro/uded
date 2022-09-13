@@ -5,15 +5,6 @@ EditorUserSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 4
   m_ConfigSettings:
-    RecentlyUsedSceneGuid-0:
-      value: 0101565e50010a0e090f097011200b4440154b2f7b7c7e682f7d4b66e0b4376d
-      flags: 0
-    RecentlyUsedSceneGuid-1:
-      value: 520800075356085a5f0c587b48260b4441164b2f742a77622979486ab4e63768
-      flags: 0
-    UnityEditor.ShaderGraph.FloatingWindowsLayout2:
-      value: 181344140043005e1a220d3b1f364b524c0c5a27130c293326201334cee5322ca0bd30e8eb293a707b0fd0180b3d0a36fc0d3d04e649500d1002ee0b5dbd1d2c27c00ad113cb1e10e41f1addc80993b9859882bc8eb3b7818e87f2a2a7a1bcadb9b3a8c482a7eec9b0a0f0a5aecee8c2c7d9b2d08e9c9989ea9e93de81e0dbc9dc94dfcd9b9f9a818dddf2c3f2c0f7f4c5f0f4c5c0f4ccfdcfc9d0f079f1f534353226e9efebe5d1efe035db2028d5da256a9b353588838d8a997d83959c95a34383968e52d9c080239372ba6e4c6b6a6f5244506c4c2d364f7b795b112f2c4c012927712175701c213f721850526b4d090338740c3d5e44333c4f0d10545147544e450e0d00170746602c1c262c302a33291b32281b072d2f0e350970ba6662ad6178a4e80ada32f7ebae58eb4127b2aca5a85a42584a52144ba74792905a48dfda5a8bca1b0c081cf0ff0ee108e81ac5d9e0f1d3a9b0f0b3f69fb4a58fa0bda1e9babcb8f2abacfbb7acb3b0
-      flags: 0
     vcSharedLogLevel:
       value: 0d5e400f0650
       flags: 0
@@ -30,5 +21,5 @@ EditorUserSettings:
   m_VCProjectOverlayIcons: 1
   m_VCHierarchyOverlayIcons: 1
   m_VCOtherOverlayIcons: 1
-  m_VCAllowAsyncUpdate: 0
+  m_VCAllowAsyncUpdate: 1
   m_ArtifactGarbageCollection: 1

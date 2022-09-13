@@ -21,7 +21,6 @@ namespace Uded
         public bool displayDebug;
         public bool displayEdges;
         public List<GameObject> childObjects = new List<GameObject>();
-        
         public void OnEnable()
         {
             Rebuild();
@@ -261,6 +260,7 @@ namespace Uded
 
         }
 
+        private Dictionary<GameObject, int> GOtoFace = new();
         public void BuildFaceMeshes()
         {
             foreach (var childObject in childObjects)
@@ -271,21 +271,39 @@ namespace Uded
             childObjects.Clear();
             for (int i = 0; i < Faces.Count; i++)
             {
-                if (Faces[i].clockwise || Faces[i].Edges.Count < 3)
+                var face = Faces[i];
+                if (face.clockwise || face.Edges.Count < 3)
                 {
                     continue;
                 }
-
+        
                 var go = new GameObject("face " + i);
+                GOtoFace[go] = i;
                 go.transform.SetParent(transform);
-                go.AddComponent<MeshFilter>().sharedMesh = PolyToMesh.GetMeshFromFace(i, this, Edges, Faces);
+                var currentSectorMesh = PolyToMesh.GetMeshFromFace(i, this, Edges, Faces);
+                // go.AddComponent<MeshCollider>().sharedMesh = currentSectorMesh;
+                go.AddComponent<MeshFilter>().sharedMesh = currentSectorMesh;
+                var mats = new List<Material>();
+                mats.Add(face.floorMat ? face.floorMat : FloorMat);
+                mats.Add(face.ceilingMat? face.ceilingMat:CeilingMat);
+                for (int j = 1; j < currentSectorMesh.subMeshCount; j++)
+                {
+                    mats.Add(WallMat);
+                }
+                go.AddComponent<MeshRenderer>().sharedMaterials = mats.ToArray();
                 
-                go.AddComponent<MeshRenderer>().sharedMaterials = new[] {FloorMat, CeilingMat, WallMat};
                 go.hideFlags = HideFlags.HideAndDontSave;
                 childObjects.Add(go);
             }
         }
 
+        public void ApplyMaterialToFace(GameObject faceObject, Material mat)
+        {
+            if (GOtoFace.ContainsKey(faceObject))
+                Faces[GOtoFace[faceObject]].floorMat = mat;
+            BuildFaceMeshes();
+        }
+        
         public Vector2 GetFaceCenter(int faceIndex)
         {
             Vector2 center = EdgeVertex(Edges[Faces[faceIndex].Edges[0]]);
@@ -300,7 +318,7 @@ namespace Uded
             }
             return center * (1.0f / edgeCount);
         }
-
+        
         public bool PointInFace(Vector2 point, int faceIndex)
         {
             Ray2D testRay = new Ray2D(point, Vector2.right);
