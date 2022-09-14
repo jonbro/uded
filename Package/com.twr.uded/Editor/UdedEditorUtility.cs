@@ -135,6 +135,7 @@ namespace Uded
                     {
                         if(enter < res.Distance || res.t == ElementType.none)
                         {
+                            res.PickPoint = enterPoint;
                             res.t = ElementType.floor;
                             res.index = i;
                             res.Distance = enter;
@@ -162,6 +163,7 @@ namespace Uded
                     {
                         if(enter < res.Distance || res.t == ElementType.none)
                         {
+                            res.PickPoint = enterPoint;
                             res.t = ElementType.ceiling;
                             res.index = i;
                             res.Distance = enter;
