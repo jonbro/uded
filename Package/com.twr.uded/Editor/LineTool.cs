@@ -15,7 +15,7 @@ namespace Uded
         [SerializeField] Texture2D m_ToolIcon;
 
         public override GUIContent toolbarIcon => m_IconContent;
-
+        private float pickingPlaneHeight = 0;
         void OnEnable()
         {
             ToolManager.activeToolChanged += ActiveToolDidChange;
@@ -53,9 +53,31 @@ namespace Uded
                 SubmitCurrentPoints();
             }
 
-            if (new Plane(Vector3.up, Vector3.zero).Raycast(ray, out rayEnter))
+            var uded = target as UdedCore;
+            if (UdedEditorUtility.GetNearestFace(uded, out var res))
             {
-                var intersectionPoint = SnapControl.SnapToGrid(ray.GetPoint(rayEnter));
+                var face = uded.Faces[res.index];
+                if (res.t == ElementType.ceiling)
+                {
+                    pickingPlaneHeight = face.ceilingHeight;
+                }
+                else if (res.t == ElementType.floor)
+                {
+                    pickingPlaneHeight = face.floorHeight;
+                }
+            }
+            if (new Plane(Vector3.up, Vector3.up*pickingPlaneHeight).Raycast(ray, out rayEnter))
+            {
+                var intersectionPoint = ray.GetPoint(rayEnter); // SnapControl.SnapToGrid(ray.GetPoint(rayEnter));
+                // snap to nearby verts that are in the current point list
+                foreach (var linePoint in linePoints)
+                {
+                    float snapSize = HandleUtility.GetHandleSize(intersectionPoint) * 0.08f;
+                    if (Vector3.Distance(intersectionPoint, linePoint) < snapSize)
+                    {
+                        intersectionPoint = linePoint;
+                    }
+                }
                 Handles.DrawSolidDisc(intersectionPoint, Vector3.up, 0.1f);
                 var defaultID = GUIUtility.GetControlID(FocusType.Keyboard, dragArea);
                 HandleUtility.AddDefaultControl(defaultID);

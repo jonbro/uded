@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Text;
 using UnityEditor;
+using UnityEditor.EditorTools;
 using UnityEngine;
 
 namespace Uded
@@ -9,11 +10,7 @@ namespace Uded
     [CustomEditor(typeof(UdedCore))]
     public class UdedEditor : Editor
     {
-        private int currentFace = -1;
-        private int debugVert = -1;
-        private int fixLink = -1;
-
-        private (PickingElement element, Material mat) lastMaterialRollback;
+        private (PickingElement element, Material mat) _lastMaterialRollback;
         public override void OnInspectorGUI()
         {
             var uded = (UdedCore) target;
@@ -29,24 +26,19 @@ namespace Uded
                 uded.Clear();
                 EditorUtility.SetDirty(uded);
             }
-
-            debugVert = EditorGUILayout.IntField(debugVert);
-            if (GUILayout.Button("DebugVert") && debugVert > 0 && debugVert < uded.Vertexes.Count)
-            {
-                uded.DebugExitsForVert(debugVert);
-            }
-
-            fixLink = EditorGUILayout.IntField(fixLink);
-            if (GUILayout.Button("Fix Link") && fixLink > 0 && fixLink < uded.Edges.Count)
-            {
-                uded.FixLink(fixLink);
-            }
         }
 
         private PickingElement dragElement;
         private bool dragging;
         void OnSceneGUI()
         {
+            // Handles.DrawLine(Vector3.zero, Vector3.up*10);
+            // var r1 = HandleUtility.GUIPointToWorldRay(Event.current.mousePosition);
+            // UdedEditorUtility.PointOnRay(r1, new Ray(Vector3.zero, Vector3.up), out var distance);
+            // Handles.DrawSolidDisc(Vector3.up*distance, -r1.origin, 0.1f);
+            // HandleUtility.Repaint();
+            // return;
+
             // get the chosen game object
             var uded = target as UdedCore;
             if (uded == null)
@@ -55,7 +47,7 @@ namespace Uded
                 DisplayDebug(uded);
             // highlight the currently hovered wall
             var nearest = UdedEditorUtility.GetNearestLevelElement(uded);
-            Event e = Event.current;
+            Event evt = Event.current;
             if (nearest.t is ElementType.vertex)
             {
                 Handles.color = Color.green;
@@ -88,29 +80,29 @@ namespace Uded
             {
                 var controlId = GUIUtility.GetControlID(FocusType.Passive);
                 GUIUtility.hotControl = controlId;
-                if (e.type == EventType.MouseUp && e.button == 0)
+                if (evt.type == EventType.MouseUp && evt.button == 0)
                 {
                     DirectManipulation.EndDrag();
-                    e.Use();
+                    evt.Use();
                     GUIUtility.hotControl = 0;
                 }
-                if(e.type == EventType.MouseDrag)
+                if(evt.type == EventType.MouseDrag)
                 {
                     // new mouse point
                     DirectManipulation.UpdateDrag();
-                    e.Use();
+                    evt.Use();
                     uded.Rebuild();
                 }
             }
 
-            if (e.type == EventType.MouseDown && e.button == 0)
+            if (ToolManager.activeToolType != typeof(RectTool) && ToolManager.activeToolType != typeof(LineTool) && evt.type == EventType.MouseDown && evt.button == 0)
             {
                 DirectManipulation.StartDrag(uded, nearest);
-                e.Use();
+                evt.Use();
             }
-            if (e.type == EventType.DragExited)
+            if (evt.type == EventType.DragExited)
             {
-                lastMaterialRollback.element = default;
+                _lastMaterialRollback.element = default;
             }
 
             if (DragAndDrop.objectReferences.Length == 1 &&
@@ -123,31 +115,31 @@ namespace Uded
                 if (nearest.t == ElementType.none)
                 {
                     RollbackMaterialChange(uded);
-                    lastMaterialRollback.element = new PickingElement();
+                    _lastMaterialRollback.element = new PickingElement();
                     uded.Rebuild();
                 }
                 if (nearest.t == ElementType.ceiling)
                 {
                     // run rollback on the last change
                     RollbackMaterialChange(uded);
-                    lastMaterialRollback.element = nearest;
-                    lastMaterialRollback.mat = uded.Faces[nearest.index].ceilingMat;
+                    _lastMaterialRollback.element = nearest;
+                    _lastMaterialRollback.mat = uded.Faces[nearest.index].ceilingMat;
                     uded.Faces[nearest.index].ceilingMat = mat;
                     uded.Rebuild();
                 }
                 if (nearest.t == ElementType.floor)
                 {
                     RollbackMaterialChange(uded);
-                    lastMaterialRollback.element = nearest;
-                    lastMaterialRollback.mat = uded.Faces[nearest.index].floorMat;
+                    _lastMaterialRollback.element = nearest;
+                    _lastMaterialRollback.mat = uded.Faces[nearest.index].floorMat;
                     uded.Faces[nearest.index].floorMat = mat;
                     uded.Rebuild();
                 }
                 if (nearest.t == ElementType.wall_mid)
                 {
                     RollbackMaterialChange(uded);
-                    lastMaterialRollback.element = nearest;
-                    lastMaterialRollback.mat = uded.Edges[nearest.index].midMat;
+                    _lastMaterialRollback.element = nearest;
+                    _lastMaterialRollback.mat = uded.Edges[nearest.index].midMat;
                     uded.Edges[nearest.index].midMat = mat;
                     // todo: add a rebuild that only reconstructs the material array
                     uded.Rebuild();
@@ -155,8 +147,8 @@ namespace Uded
                 if (nearest.t == ElementType.wall_upper)
                 {
                     RollbackMaterialChange(uded);
-                    lastMaterialRollback.element = nearest;
-                    lastMaterialRollback.mat = uded.Edges[nearest.index].upperMat;
+                    _lastMaterialRollback.element = nearest;
+                    _lastMaterialRollback.mat = uded.Edges[nearest.index].upperMat;
                     uded.Edges[nearest.index].upperMat = mat;
                     // todo: add a rebuild that only reconstructs the material array
                     uded.Rebuild();
@@ -164,8 +156,8 @@ namespace Uded
                 if (nearest.t == ElementType.wall_lower)
                 {
                     RollbackMaterialChange(uded);
-                    lastMaterialRollback.element = nearest;
-                    lastMaterialRollback.mat = uded.Edges[nearest.index].lowerMat;
+                    _lastMaterialRollback.element = nearest;
+                    _lastMaterialRollback.mat = uded.Edges[nearest.index].lowerMat;
                     uded.Edges[nearest.index].lowerMat = mat;
                     // todo: add a rebuild that only reconstructs the material array
                     uded.Rebuild();
@@ -201,22 +193,22 @@ namespace Uded
 
         private void RollbackMaterialChange(UdedCore uded)
         {
-            switch (lastMaterialRollback.element.t)
+            switch (_lastMaterialRollback.element.t)
             {
                 case ElementType.ceiling:
-                    uded.Faces[lastMaterialRollback.element.index].ceilingMat = lastMaterialRollback.mat;
+                    uded.Faces[_lastMaterialRollback.element.index].ceilingMat = _lastMaterialRollback.mat;
                     break;
                 case ElementType.floor:
-                    uded.Faces[lastMaterialRollback.element.index].floorMat = lastMaterialRollback.mat;
+                    uded.Faces[_lastMaterialRollback.element.index].floorMat = _lastMaterialRollback.mat;
                     break;
                 case ElementType.wall_mid:
-                    uded.Edges[lastMaterialRollback.element.index].midMat = lastMaterialRollback.mat;
+                    uded.Edges[_lastMaterialRollback.element.index].midMat = _lastMaterialRollback.mat;
                     break;
                 case ElementType.wall_upper:
-                    uded.Edges[lastMaterialRollback.element.index].upperMat = lastMaterialRollback.mat;
+                    uded.Edges[_lastMaterialRollback.element.index].upperMat = _lastMaterialRollback.mat;
                     break;
                 case ElementType.wall_lower:
-                    uded.Edges[lastMaterialRollback.element.index].lowerMat = lastMaterialRollback.mat;
+                    uded.Edges[_lastMaterialRollback.element.index].lowerMat = _lastMaterialRollback.mat;
                     break;
             }
         }

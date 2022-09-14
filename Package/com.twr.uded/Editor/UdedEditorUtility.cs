@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
 
@@ -24,6 +25,28 @@ namespace Uded
 
     public class UdedEditorUtility
     {
+        public static bool PointOnRay(Ray r1, Ray r2, out float distanceOnRay1, out float distanceOnRay2)
+        {
+            distanceOnRay1 = distanceOnRay2 = 0;
+            float a = Vector3.Dot(r1.direction, r1.direction);
+            float b = Vector3.Dot(r1.direction.normalized, r2.direction.normalized);
+            float e = Vector3.Dot(r2.direction, r2.direction);
+ 
+            float d = a*e - b*b;
+            // check for parallel
+            if(d != 0.0f)
+            {
+                Vector3 r = r1.origin - r2.origin;
+                float c = Vector3.Dot(r1.direction, r);
+                float f = Vector3.Dot(r2.direction, r);
+                distanceOnRay1 = (b*f - c*e) / d;
+                distanceOnRay2 = (a*f - c*b) / d;
+                return true;
+            }
+
+            return false;
+        }
+
         public static PickingElement GetNearestLevelElement(UdedCore uded)
         {
             var interiors = new Dictionary<int, int>();
@@ -42,6 +65,33 @@ namespace Uded
                 index=-1,
                 Distance=0.0f
             };
+            var testedVert = new HashSet<int>();
+            for (int i = 0; i < uded.Edges.Count; i++)
+            {
+                var edge = uded.Edges[i];
+                if(testedVert.Contains(edge.vertexIndex))
+                    continue;
+                testedVert.Add(edge.vertexIndex);
+                var vertPoint = new Ray(uded.EdgeVertex(i), Vector3.up);
+                if (PointOnRay(ray, vertPoint, out var r1, out var r2))
+                {
+                    var pointOnEdge = vertPoint.origin + vertPoint.direction * r2;
+                    var size = HandleUtility.GetHandleSize(pointOnEdge)*0.05f;
+                    var screenToPickDistance = Vector3.Distance(pointOnEdge, ray.origin);
+                    var screenRayNearestPoint = ray.origin + ray.direction * r1;
+                    var distanceToVert = Vector3.Distance(screenRayNearestPoint, pointOnEdge);
+                    if (distanceToVert < size && res.t == ElementType.none || screenToPickDistance < res.Distance)
+                    {
+                        res.t = ElementType.vertex;
+                        res.index = i;
+                        res.PickPoint = screenRayNearestPoint;
+                        res.Distance = distanceToVert;
+                    }
+                }
+            }
+            // return early if we found a vert hit
+            if (res.t == ElementType.vertex)
+                return res;
             for (int i = 0; i < uded.Edges.Count; i++)
             {
                 var edge = uded.Edges[i];
@@ -87,20 +137,10 @@ namespace Uded
                         }
                     }
 
-                    var intersectionDistance = UdedCore.RayLineIntersection(r, uded.EdgeVertex(edge), uded.EdgeVertex(uded.GetTwin(i)));
-                    if (intersectionDistance != null)
+                    if (UdedCore.RayLineIntersection(r, uded.EdgeVertex(edge), uded.EdgeVertex(uded.GetTwin(i)), out _))
                     {
-                        // bias towards grabbing verts
-                        var vertGrabDisance = HandleUtility.GetHandleSize(enterPoint)*0.12f;
-                        var vertADistance = (uded.EdgeVertex(edge) - (r.origin + r.direction * intersectionDistance)).Value.magnitude;
-                        if (vertADistance < vertGrabDisance && res.t == ElementType.none || vertADistance < res.Distance)
-                        {
-                            res.PickPoint = enterPoint;
-                            res.t = ElementType.vertex;
-                            res.index = i;
-                            res.Distance = vertADistance;
-                        }
-                        else if (res.t == ElementType.none || enter < res.Distance)
+                        res.PickPoint = enterPoint;
+                        if (res.t == ElementType.none || enter < res.Distance)
                         {
                             res.t = seg;
                             res.index = i;
@@ -110,16 +150,30 @@ namespace Uded
                 }
             }
             // test the floors / ceilings
+            if(GetNearestFace(uded, out var faceRes))
+            {
+                res = faceRes;
+            }
+            return res;
+        }
+
+        public static bool GetNearestFace(UdedCore uded, out PickingElement res)
+        {
+            Ray ray = HandleUtility.GUIPointToWorldRay (Event.current.mousePosition);
+            res = new PickingElement
+            {
+                t = ElementType.none
+            };
             for (int i = 0; i < uded.Faces.Count; i++)
             {
                 var face = uded.Faces[i];
-                if(face.clockwise)
+                if (face.clockwise)
                     continue;
                 // test floor
-                var floorPlane = new Plane(Vector3.up, new Vector3(0,face.floorHeight, 0));
-                if(Vector3.Dot(floorPlane.normal, ray.direction) < 0 && floorPlane.Raycast(ray, out var enter))
+                var floorPlane = new Plane(Vector3.up, new Vector3(0, face.floorHeight, 0));
+                if (Vector3.Dot(floorPlane.normal, ray.direction) < 0 && floorPlane.Raycast(ray, out var enter))
                 {
-                    var enterPoint = ray.origin+ray.direction*enter;
+                    var enterPoint = ray.origin + ray.direction * enter;
                     var enterPoint2d = new Vector2(enterPoint.x, enterPoint.z);
                     bool isInInterior = false;
                     foreach (var interiorFaceIndex in face.InteriorFaces)
@@ -131,9 +185,10 @@ namespace Uded
                             break;
                         }
                     }
+
                     if (!isInInterior && uded.PointInFace(enterPoint2d, i))
                     {
-                        if(enter < res.Distance || res.t == ElementType.none)
+                        if (enter < res.Distance || res.t == ElementType.none)
                         {
                             res.PickPoint = enterPoint;
                             res.t = ElementType.floor;
@@ -142,12 +197,13 @@ namespace Uded
                         }
                     }
                 }
+
                 // test ceiling
-                var ceilingPlane = new Plane(-Vector3.up, new Vector3(0,face.ceilingHeight, 0));
-                ray = HandleUtility.GUIPointToWorldRay (Event.current.mousePosition);
-                if(Vector3.Dot(ceilingPlane.normal, ray.direction) < 0 && ceilingPlane.Raycast(ray, out enter))
+                var ceilingPlane = new Plane(-Vector3.up, new Vector3(0, face.ceilingHeight, 0));
+                ray = HandleUtility.GUIPointToWorldRay(Event.current.mousePosition);
+                if (Vector3.Dot(ceilingPlane.normal, ray.direction) < 0 && ceilingPlane.Raycast(ray, out enter))
                 {
-                    var enterPoint = ray.origin+ray.direction*enter;
+                    var enterPoint = ray.origin + ray.direction * enter;
                     var enterPoint2d = new Vector2(enterPoint.x, enterPoint.z);
                     bool isInInterior = false;
                     foreach (var interiorFaceIndex in face.InteriorFaces)
@@ -159,9 +215,10 @@ namespace Uded
                             break;
                         }
                     }
+
                     if (!isInInterior && uded.PointInFace(enterPoint2d, i))
                     {
-                        if(enter < res.Distance || res.t == ElementType.none)
+                        if (enter < res.Distance || res.t == ElementType.none)
                         {
                             res.PickPoint = enterPoint;
                             res.t = ElementType.ceiling;
@@ -172,7 +229,7 @@ namespace Uded
                 }
             }
 
-            return res;
+            return res.t != ElementType.none;
         }
     }
 }

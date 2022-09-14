@@ -9,7 +9,7 @@ namespace Uded
 {
     static class DirectManipulation
     {
-        private static Vector2 StartPositionVert;
+        private static Vector2 StartPositionVert, StartPositionVert2;
         private static float startPositionHeight;
         private static bool s_IsDragging;
         private static PickingElement element;
@@ -21,7 +21,12 @@ namespace Uded
         {
             uded = _uded;
             element = _element;
-            if (element.t == ElementType.vertex)
+            if (element.t is ElementType.wall_mid or ElementType.wall_upper or ElementType.wall_lower)
+            {
+                StartPositionVert = _uded.Vertexes[_uded.Edges[_element.index].vertexIndex]._value;
+                StartPositionVert2 = _uded.Vertexes[_uded.GetTwin(_element.index).vertexIndex]._value;
+            }
+            else if (element.t == ElementType.vertex)
                 StartPositionVert = _uded.Vertexes[_uded.Edges[_element.index].vertexIndex]._value;
             else if (element.t == ElementType.floor)
                 startPositionHeight = _uded.Faces[element.index].floorHeight;
@@ -33,7 +38,17 @@ namespace Uded
 
         public static void UpdateDrag()
         {
-            if (element.t == ElementType.vertex)
+            if (element.t is ElementType.wall_mid or ElementType.wall_upper or ElementType.wall_lower)
+            {
+                Ray ray = HandleUtility.GUIPointToWorldRay (Event.current.mousePosition);
+                new Plane(Vector3.up, element.PickPoint).Raycast(ray, out float enter);
+                var offset = (ray.origin+ray.direction*enter) - element.PickPoint;
+                uded.Vertexes[uded.Edges[element.index].vertexIndex]._value =
+                    StartPositionVert + new Vector2(offset.x, offset.z);
+                uded.Vertexes[uded.GetTwin(element.index).vertexIndex]._value =
+                    StartPositionVert2 + new Vector2(offset.x, offset.z);
+            }
+            else if (element.t == ElementType.vertex)
             {
                 Ray ray = HandleUtility.GUIPointToWorldRay (Event.current.mousePosition);
                 new Plane(Vector3.up, element.PickPoint).Raycast(ray, out float enter);

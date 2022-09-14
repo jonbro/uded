@@ -197,7 +197,7 @@ namespace Uded
                 // if this is an outward facing edge
                 if (face.clockwise)
                 {
-                    var containingFaces = new Dictionary<int, ValueTuple<int, int>>();
+                    var containingFaces = new Dictionary<int, ValueTuple<int, float>>();
                     // determine if this face is contained within another poly
                     var testEdge = Edges[face.Edges[0]];
                     Ray2D testRay = new Ray2D(EdgeVertex(testEdge), Vector2.right);
@@ -214,26 +214,26 @@ namespace Uded
                             exteriorFaceEdgeIndex++)
                         {
                             var edge = Edges[faceExterior.Edges[exteriorFaceEdgeIndex]];
-                            if (GetTwin(exteriorFaceEdgeIndex).face == testingFaceIndex)
+                            if (GetTwin(faceExterior.Edges[exteriorFaceEdgeIndex]).face == testingFaceIndex)
                                 break;
-                            if (RayLineIntersection(testRay, EdgeVertex(edge), EdgeVertex(edge.nextId)) != null)
+                            if (RayLineIntersection(testRay, EdgeVertex(edge), EdgeVertex(edge.nextId), out var distance))
                             {
                                 if (!containingFaces.ContainsKey(edge.face))
                                 {
-                                    containingFaces[edge.face] = new ValueTuple<int, int>(1, facePriority++);
+                                    containingFaces[edge.face] = new ValueTuple<int, float>(1, distance);
                                 }
                                 else
                                 {
                                     var lastValue = containingFaces[edge.face];
                                     containingFaces[edge.face] =
-                                        new ValueTuple<int, int>(++lastValue.Item1, lastValue.Item2);
+                                        new ValueTuple<int, float>(++lastValue.Item1, distance<lastValue.Item2?distance:lastValue.Item2);
                                 }
                             }
                         }
                     }
 
                     // get the containing face with an odd number of crossings and the lowest priority value
-                    var lowestValue = 0;
+                    float lowestValue = 0;
                     int containingFace = -1;
                     foreach (var potentialContainer in containingFaces)
                     {
@@ -241,7 +241,6 @@ namespace Uded
                         {
                             continue;
                         }
-
                         if (containingFace < 0 || lowestValue > potentialContainer.Value.Item2)
                         {
                             containingFace = potentialContainer.Key;
@@ -327,7 +326,7 @@ namespace Uded
             {
                 var edgeIndex = Faces[faceIndex].Edges[i];
                 var edge = Edges[edgeIndex];
-                if (RayLineIntersection(testRay, EdgeVertex(edge), EdgeVertex(GetTwin(edgeIndex))) != null)
+                if (RayLineIntersection(testRay, EdgeVertex(edge), EdgeVertex(GetTwin(edgeIndex)), out _))
                 {
                     cross++;
                 }
@@ -356,8 +355,9 @@ namespace Uded
         {
             return Vector3.Cross(new Vector3(a.x, a.y, 0), new Vector3(b.x, b.y, 0)).z;
         }
-        public static float? RayLineIntersection(Ray2D ray, Vector2 a, Vector2 b)
+        public static bool RayLineIntersection(Ray2D ray, Vector2 a, Vector2 b, out float distance)
         {
+            distance = 0;
             var v1 = ray.origin - a;
             var v2 = b - a;
             var v3 = new Vector2(-ray.direction.y, ray.direction.x);
@@ -365,15 +365,18 @@ namespace Uded
 
             var dot = Vector2.Dot(v2, v3);
             if (Mathf.Abs(dot) < 0.000001)
-                return null;
+                return false;
 
             var t1 = Vector2Cross(v2, v1) / dot;
             var t2 = Vector2.Dot(v1, v3) / dot;
 
             if (t1 >= 0.0 && (t2 >= 0.0f && t2 <= 1.0f))
-                return t1;
+            {
+                distance = t1;
+                return true;
+            };
 
-            return null;
+            return false;
         }
 
         public static bool LineLineIntersection(Vector2 a1, Vector2 a2, Vector2 b1, Vector2 b2, out Vector2 intersectionPoint)

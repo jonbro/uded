@@ -7,7 +7,7 @@ namespace Uded
     public class UdedEditorTests
     {
         private UdedCore _uded;
-        
+
         [SetUp]
         public void SetUp()
         {
@@ -20,6 +20,16 @@ namespace Uded
             _uded.AddRect(new Vertex(0,0), new Vertex(2,0), new Vertex(2,2), new Vertex(0,2));
             _uded.Rebuild();
             Assert.That(_uded.Faces.Count, Is.EqualTo(2));
+        }
+        [Test]
+        public void RayToRay()
+        {
+            UdedEditorUtility.PointOnRay(new Ray(new Vector3(-1, 1, 0), Vector3.right),
+                new Ray(Vector3.zero, Vector3.up), out _, out var distance);
+            Assert.AreEqual(1, distance);
+            UdedEditorUtility.PointOnRay(new Ray(new Vector3(0, 0, 0), new Vector3(1, 1, 0).normalized),
+                new Ray(new Vector3(1, 0, 0), Vector3.up), out _, out distance);
+            Assert.AreEqual(1, distance);
         }
         
         [Test]
@@ -35,6 +45,21 @@ namespace Uded
             Assert.AreEqual(3, _uded.Faces[0].InteriorFaces[0]);
         }
         
+        [Test]
+        public void NestedInteriors()
+        {
+            _uded.AddRect(new Vertex(0, 0), new Vertex(5,0), new Vertex(5,5), new Vertex(0,5));
+            _uded.Rebuild();
+            _uded.AddRect(new Vertex(1, 1), new Vertex(4,1), new Vertex(4,4), new Vertex(1,4));
+            _uded.Rebuild();
+            _uded.AddRect(new Vertex(2, 2), new Vertex(3,2), new Vertex(3,3), new Vertex(2,3));
+            _uded.Rebuild();
+            
+            // confirm that the interior face is set correctly
+            Assert.AreEqual(1, _uded.Faces[0].InteriorFaces.Count);
+            Assert.AreEqual(3, _uded.Faces[0].InteriorFaces[0]);
+        }
+
         [Test]
         public void EdgeRayIntersectionCorrect()
         {
