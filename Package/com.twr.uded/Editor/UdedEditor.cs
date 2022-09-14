@@ -1,10 +1,8 @@
 ﻿using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Text;
 using UnityEditor;
-using UnityEditor.Graphs;
 using UnityEngine;
-using UnityEngine.Rendering.VirtualTexturing;
 
 namespace Uded
 {
@@ -19,6 +17,7 @@ namespace Uded
             wall_mid,
             wall_lower,
             wall_upper,
+            vertex,
             floor,
             ceiling,
             none
@@ -56,6 +55,11 @@ namespace Uded
                 uded.FixLink(fixLink);
             }
         }
+
+        private Vector3 startPosition;
+        private bool dragging;
+        private int edgeDragIndex;
+        private Vector2 startVertPosition;
         void OnSceneGUI()
         {
             // get the chosen game object
@@ -67,7 +71,15 @@ namespace Uded
             // highlight the currently hovered wall
             var nearest = GetNearestLevelElement(uded);
             Event e = Event.current;
-            if (nearest.t is ElementType.wall_lower or ElementType.wall_mid or ElementType.wall_upper)
+            if (nearest.t is ElementType.vertex)
+            {
+                Handles.color = Color.green;
+                var edge = uded.Edges[nearest.index];
+                var face = uded.Faces[edge.face];
+                var thisVert = uded.EdgeVertex(edge);
+                Handles.DrawLine(thisVert+Vector3.up*face.floorHeight, thisVert+Vector3.up*face.ceilingHeight);
+            }
+            else if (nearest.t is ElementType.wall_lower or ElementType.wall_mid or ElementType.wall_upper)
             {
                 Handles.color = Color.green;
                 DrawWall(uded, nearest);
@@ -87,7 +99,38 @@ namespace Uded
                     Handles.DrawLine(new Vector3(thisVert.x, height, thisVert.y), new Vector3(nextVert.x, height, nextVert.y));
                 }
             }
+            if (dragging)
+            {
+                if (e.type == EventType.MouseUp && e.button == 0)
+                {
+                    dragging = false;
+                }
+                var controlId = GUIUtility.GetControlID(FocusType.Passive);
+                GUIUtility.hotControl = controlId;
+                if(e.type == EventType.MouseDrag)
+                {
+                    // new mouse point
+                    Ray ray = HandleUtility.GUIPointToWorldRay (Event.current.mousePosition);
+                    new Plane(Vector3.up, startPosition).Raycast(ray, out float enter);
+                    var offset = (ray.origin+ray.direction*enter) - startPosition;
+                    uded.Vertexes[uded.Edges[edgeDragIndex].vertexIndex]._value =
+                        startVertPosition + new Vector2(offset.x, offset.z);
+                    e.Use();
+                    uded.Rebuild();
+                }
+            }
 
+            // direct manipulation of vertexes
+            if (nearest.t == ElementType.vertex)
+            {
+                if (e.type == EventType.MouseDown && e.button == 0)
+                {
+                    edgeDragIndex = nearest.index;
+                    dragging = true;
+                    startVertPosition = uded.Vertexes[uded.Edges[edgeDragIndex].vertexIndex]._value;
+                    e.Use();
+                }
+            }
             if (e.type == EventType.DragExited)
             {
                 lastMaterialRollback.t = ElementType.none;
@@ -265,10 +308,21 @@ namespace Uded
                             continue;
                         }
                     }
-                    if (UdedCore.RayLineIntersection(r, uded.EdgeVertex(edge), uded.EdgeVertex(uded.GetTwin(i))) !=
-                        null)
+
+                    var intersectionDistance = UdedCore.RayLineIntersection(r, uded.EdgeVertex(edge), uded.EdgeVertex(uded.GetTwin(i)));
+                    if (intersectionDistance != null)
                     {
-                        if (res.t == ElementType.none || enter < res.distance)
+                        // bias towards grabbing verts
+                        var vertGrabDisance = HandleUtility.GetHandleSize(enterPoint)*0.12f;
+                        var vertADistance = (uded.EdgeVertex(edge) - (r.origin + r.direction * intersectionDistance)).Value.magnitude;
+                        if (vertADistance < vertGrabDisance && res.t == ElementType.none || vertADistance < res.distance)
+                        {
+                            startPosition = enterPoint;
+                            res.t = ElementType.vertex;
+                            res.index = i;
+                            res.distance = vertADistance;
+                        }
+                        else if (res.t == ElementType.none || enter < res.distance)
                         {
                             res.t = seg;
                             res.index = i;
@@ -288,7 +342,18 @@ namespace Uded
                 if(Vector3.Dot(floorPlane.normal, ray.direction) < 0 && floorPlane.Raycast(ray, out var enter))
                 {
                     var enterPoint = ray.origin+ray.direction*enter;
-                    if (uded.PointInFace(new Vector2(enterPoint.x, enterPoint.z), i))
+                    var enterPoint2d = new Vector2(enterPoint.x, enterPoint.z);
+                    bool isInInterior = false;
+                    foreach (var interiorFaceIndex in face.InteriorFaces)
+                    {
+                        // need to get the flipped face so the point in face works correctly
+                        if (uded.PointInFace(enterPoint2d, interiorFaceIndex))
+                        {
+                            isInInterior = true;
+                            break;
+                        }
+                    }
+                    if (!isInInterior && uded.PointInFace(enterPoint2d, i))
                     {
                         if(enter < res.distance || res.t == ElementType.none)
                         {
@@ -304,7 +369,18 @@ namespace Uded
                 if(Vector3.Dot(ceilingPlane.normal, ray.direction) < 0 && ceilingPlane.Raycast(ray, out enter))
                 {
                     var enterPoint = ray.origin+ray.direction*enter;
-                    if (uded.PointInFace(new Vector2(enterPoint.x, enterPoint.z), i))
+                    var enterPoint2d = new Vector2(enterPoint.x, enterPoint.z);
+                    bool isInInterior = false;
+                    foreach (var interiorFaceIndex in face.InteriorFaces)
+                    {
+                        // need to get the flipped face so the point in face works correctly
+                        if (uded.PointInFace(enterPoint2d, interiorFaceIndex))
+                        {
+                            isInInterior = true;
+                            break;
+                        }
+                    }
+                    if (!isInInterior && uded.PointInFace(enterPoint2d, i))
                     {
                         if(enter < res.distance || res.t == ElementType.none)
                         {
@@ -352,7 +428,6 @@ namespace Uded
                 foreach (var vertex in uded.Vertexes)
                 {
                     Handles.color = Color.white;
-                    // Handles.DrawSolidDisc((Vector3) vertex, Vector3.up, 0.01f);
                     Handles.color = Color.black;
                     Handles.DrawWireDisc((Vector3) vertex, Vector3.up, 0.01f);
                     Handles.Label((Vector3) vertex, "" + count++);
