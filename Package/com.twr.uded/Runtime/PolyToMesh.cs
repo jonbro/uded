@@ -12,9 +12,11 @@ namespace Uded
 	{
 		private float multiplier = 10000;
 		private static List<List<int>> wallIndexes = new();
+		private static List<Material> resMats = new(); 
 
-		public static Mesh GetMeshFromFace(int faceIndex, UdedCore uded, List<Uded.HalfEdge> edges, List<Uded.Face> faces)
+		public static (Mesh mesh, Material[] wallMaterials) GetMeshFromFace(int faceIndex, UdedCore uded, List<Uded.HalfEdge> edges, List<Uded.Face> faces)
 		{
+			resMats.Clear();
 			wallIndexes.Clear();
 			var face = faces[faceIndex];
 			TriangleNet.Mesh tmesh = new TriangleNet.Mesh();
@@ -26,7 +28,7 @@ namespace Uded
 			int indexMarker = startIndexMark;
 			int EdgeMarker = indexMarker;
 			if (face.Edges.Count == 0)
-				return new Mesh();
+				return (new Mesh(), resMats.ToArray());
 			for (int edgeIndex = 0; edgeIndex < face.Edges.Count; edgeIndex++)
 			{
 				var edge = edges[face.Edges[edgeIndex]];
@@ -146,16 +148,30 @@ namespace Uded
 					otherFace = faces[interiors[otherFaceIndex]];
 				if (!otherFace.clockwise)
 				{
-					if(otherFace.floorHeight > face.floorHeight)
+					if (otherFace.floorHeight > face.floorHeight)
+					{
+						resMats.Add(edge.lowerMat);
 						AddWall(pointA, pointB, face.floorHeight, otherFace.floorHeight, vertices, uv, normals);
+					}
 					else
+					{
+						resMats.Add(uded.GetTwin(face.Edges[edgeIndex]).lowerMat);
 						AddWall(pointB, pointA, otherFace.floorHeight, face.floorHeight, vertices, uv, normals);
-					if(otherFace.ceilingHeight < face.ceilingHeight)
+					}
+
+					if (otherFace.ceilingHeight < face.ceilingHeight)
+					{
+						resMats.Add(edge.upperMat);
 						AddWall(pointA, pointB, otherFace.ceilingHeight, face.ceilingHeight, vertices, uv, normals);
+					}
 					else
+					{
+						resMats.Add(uded.GetTwin(face.Edges[edgeIndex]).upperMat);
 						AddWall(pointB, pointA, face.ceilingHeight, otherFace.ceilingHeight, vertices, uv, normals);
+					}
 					continue;
 				}
+				resMats.Add(edge.midMat);
 				AddWall(pointA, pointB, face.floorHeight, face.ceilingHeight, vertices, uv, normals);
 			}
 			//
@@ -196,7 +212,7 @@ namespace Uded
 			// TODO: make this optional, because it is somewhat slow
 			// Unwrapping.GenerateSecondaryUVSet (mesh);
 
-			return mesh;
+			return (mesh, resMats.ToArray());
 		}
 
 		private static void AddWall(Vector2 pointA, Vector2 pointB, float floorHeight, float ceilingHeight, List<Vector3> vertices, List<Vector2> uv,

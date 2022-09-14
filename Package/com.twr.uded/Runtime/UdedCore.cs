@@ -66,7 +66,7 @@ namespace Uded
             }
             Debug.Log(string.Join(",", edges));
         }
-        private int GetTwinIndex(int edgeIndex)
+        public int GetTwinIndex(int edgeIndex)
         {
             return edgeIndex % 2 == 0 ? edgeIndex + 1 : edgeIndex - 1;
         }
@@ -280,15 +280,15 @@ namespace Uded
                 var go = new GameObject("face " + i);
                 GOtoFace[go] = i;
                 go.transform.SetParent(transform);
-                var currentSectorMesh = PolyToMesh.GetMeshFromFace(i, this, Edges, Faces);
+                var currentSectorResult = PolyToMesh.GetMeshFromFace(i, this, Edges, Faces);
                 // go.AddComponent<MeshCollider>().sharedMesh = currentSectorMesh;
-                go.AddComponent<MeshFilter>().sharedMesh = currentSectorMesh;
+                go.AddComponent<MeshFilter>().sharedMesh = currentSectorResult.mesh;
                 var mats = new List<Material>();
                 mats.Add(face.floorMat ? face.floorMat : FloorMat);
-                mats.Add(face.ceilingMat? face.ceilingMat:CeilingMat);
-                for (int j = 1; j < currentSectorMesh.subMeshCount; j++)
+                mats.Add(face.ceilingMat? face.ceilingMat : CeilingMat);
+                foreach (var wallMaterial in currentSectorResult.wallMaterials)
                 {
-                    mats.Add(WallMat);
+                    mats.Add(wallMaterial == null ? WallMat : wallMaterial);
                 }
                 go.AddComponent<MeshRenderer>().sharedMaterials = mats.ToArray();
                 

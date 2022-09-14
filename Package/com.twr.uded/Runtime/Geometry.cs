@@ -28,6 +28,9 @@ namespace Uded
         public int vertexIndex;
         public int nextId;
         public int prevId;
+        public Material lowerMat;
+        public Material midMat;
+        public Material upperMat;
     }
     [Serializable]
     /// <summary>

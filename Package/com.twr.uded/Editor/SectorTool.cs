@@ -62,7 +62,7 @@ namespace Uded
                     uded.Faces[currentFace].ceilingHeight = newTargetPosition.y;
                     uded.BuildFaceMeshes();
                 }
-                Handles.Label(originalPosition, "face: " + currentFace);
+                Handles.Label(selectedFaceCenter, "face: " + currentFace);
             }
 
             var e = Event.current;
