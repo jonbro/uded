@@ -12,21 +12,8 @@ namespace Uded
         private int currentFace = -1;
         private int debugVert = -1;
         private int fixLink = -1;
-        public enum ElementType
-        {
-            wall_mid,
-            wall_lower,
-            wall_upper,
-            vertex,
-            floor,
-            ceiling,
-            none
-        }
 
-        private (ElementType t, Material mat, int index) lastMaterialRollback = new()
-        {
-            t = ElementType.none
-        };
+        private (PickingElement element, Material mat) lastMaterialRollback;
         public override void OnInspectorGUI()
         {
             var uded = (UdedCore) target;
@@ -56,10 +43,8 @@ namespace Uded
             }
         }
 
-        private Vector3 startPosition;
+        private PickingElement dragElement;
         private bool dragging;
-        private int edgeDragIndex;
-        private Vector2 startVertPosition;
         void OnSceneGUI()
         {
             // get the chosen game object
@@ -69,7 +54,7 @@ namespace Uded
             if (uded.displayDebug)
                 DisplayDebug(uded);
             // highlight the currently hovered wall
-            var nearest = GetNearestLevelElement(uded);
+            var nearest = UdedEditorUtility.GetNearestLevelElement(uded);
             Event e = Event.current;
             if (nearest.t is ElementType.vertex)
             {
@@ -99,41 +84,33 @@ namespace Uded
                     Handles.DrawLine(new Vector3(thisVert.x, height, thisVert.y), new Vector3(nextVert.x, height, nextVert.y));
                 }
             }
-            if (dragging)
+            if (DirectManipulation.IsDragging)
             {
-                if (e.type == EventType.MouseUp && e.button == 0)
-                {
-                    dragging = false;
-                }
                 var controlId = GUIUtility.GetControlID(FocusType.Passive);
                 GUIUtility.hotControl = controlId;
+                if (e.type == EventType.MouseUp && e.button == 0)
+                {
+                    DirectManipulation.EndDrag();
+                    e.Use();
+                    GUIUtility.hotControl = 0;
+                }
                 if(e.type == EventType.MouseDrag)
                 {
                     // new mouse point
-                    Ray ray = HandleUtility.GUIPointToWorldRay (Event.current.mousePosition);
-                    new Plane(Vector3.up, startPosition).Raycast(ray, out float enter);
-                    var offset = (ray.origin+ray.direction*enter) - startPosition;
-                    uded.Vertexes[uded.Edges[edgeDragIndex].vertexIndex]._value =
-                        startVertPosition + new Vector2(offset.x, offset.z);
+                    DirectManipulation.UpdateDrag();
                     e.Use();
                     uded.Rebuild();
                 }
             }
 
-            // direct manipulation of vertexes
-            if (nearest.t == ElementType.vertex)
+            if (e.type == EventType.MouseDown && e.button == 0)
             {
-                if (e.type == EventType.MouseDown && e.button == 0)
-                {
-                    edgeDragIndex = nearest.index;
-                    dragging = true;
-                    startVertPosition = uded.Vertexes[uded.Edges[edgeDragIndex].vertexIndex]._value;
-                    e.Use();
-                }
+                DirectManipulation.StartDrag(uded, nearest);
+                e.Use();
             }
             if (e.type == EventType.DragExited)
             {
-                lastMaterialRollback.t = ElementType.none;
+                lastMaterialRollback.element = default;
             }
 
             if (DragAndDrop.objectReferences.Length == 1 &&
@@ -146,35 +123,30 @@ namespace Uded
                 if (nearest.t == ElementType.none)
                 {
                     RollbackMaterialChange(uded);
-                    lastMaterialRollback.t = ElementType.none;
+                    lastMaterialRollback.element = new PickingElement();
                     uded.Rebuild();
                 }
                 if (nearest.t == ElementType.ceiling)
                 {
                     // run rollback on the last change
                     RollbackMaterialChange(uded);
-                    lastMaterialRollback.index = nearest.index;
-                    lastMaterialRollback.t = ElementType.ceiling;
+                    lastMaterialRollback.element = nearest;
                     lastMaterialRollback.mat = uded.Faces[nearest.index].ceilingMat;
                     uded.Faces[nearest.index].ceilingMat = mat;
-                    // todo: add a rebuild that only reconstructs the material array
                     uded.Rebuild();
                 }
                 if (nearest.t == ElementType.floor)
                 {
                     RollbackMaterialChange(uded);
-                    lastMaterialRollback.index = nearest.index;
-                    lastMaterialRollback.t = ElementType.floor;
+                    lastMaterialRollback.element = nearest;
                     lastMaterialRollback.mat = uded.Faces[nearest.index].floorMat;
                     uded.Faces[nearest.index].floorMat = mat;
-                    // todo: add a rebuild that only reconstructs the material array
                     uded.Rebuild();
                 }
                 if (nearest.t == ElementType.wall_mid)
                 {
                     RollbackMaterialChange(uded);
-                    lastMaterialRollback.index = nearest.index;
-                    lastMaterialRollback.t = ElementType.wall_mid;
+                    lastMaterialRollback.element = nearest;
                     lastMaterialRollback.mat = uded.Edges[nearest.index].midMat;
                     uded.Edges[nearest.index].midMat = mat;
                     // todo: add a rebuild that only reconstructs the material array
@@ -183,8 +155,7 @@ namespace Uded
                 if (nearest.t == ElementType.wall_upper)
                 {
                     RollbackMaterialChange(uded);
-                    lastMaterialRollback.index = nearest.index;
-                    lastMaterialRollback.t = ElementType.wall_upper;
+                    lastMaterialRollback.element = nearest;
                     lastMaterialRollback.mat = uded.Edges[nearest.index].upperMat;
                     uded.Edges[nearest.index].upperMat = mat;
                     // todo: add a rebuild that only reconstructs the material array
@@ -193,8 +164,7 @@ namespace Uded
                 if (nearest.t == ElementType.wall_lower)
                 {
                     RollbackMaterialChange(uded);
-                    lastMaterialRollback.index = nearest.index;
-                    lastMaterialRollback.t = ElementType.wall_lower;
+                    lastMaterialRollback.element = nearest;
                     lastMaterialRollback.mat = uded.Edges[nearest.index].lowerMat;
                     uded.Edges[nearest.index].lowerMat = mat;
                     // todo: add a rebuild that only reconstructs the material array
@@ -203,15 +173,15 @@ namespace Uded
             }
         }
 
-        private static void DrawWall(UdedCore uded, (ElementType t, int index) nearest)
+        private static void DrawWall(UdedCore uded, PickingElement element)
         {
-            var face = uded.Faces[uded.Edges[nearest.index].face];
-            var backface = uded.Faces[uded.GetTwin(nearest.index).face];
-            var edgeIndex = nearest.index;
+            var face = uded.Faces[uded.Edges[element.index].face];
+            var backface = uded.Faces[uded.GetTwin(element.index).face];
+            var edgeIndex = element.index;
             // outline the current edge
             var floorPos = face.floorHeight * Vector3.up;
             var ceilPos = face.ceilingHeight * Vector3.up;
-            switch (nearest.t)
+            switch (element.t)
             {
                 case ElementType.wall_lower:
                     ceilPos = backface.floorHeight * Vector3.up;
@@ -231,167 +201,24 @@ namespace Uded
 
         private void RollbackMaterialChange(UdedCore uded)
         {
-            switch (lastMaterialRollback.t)
+            switch (lastMaterialRollback.element.t)
             {
                 case ElementType.ceiling:
-                    uded.Faces[lastMaterialRollback.index].ceilingMat = lastMaterialRollback.mat;
+                    uded.Faces[lastMaterialRollback.element.index].ceilingMat = lastMaterialRollback.mat;
                     break;
                 case ElementType.floor:
-                    uded.Faces[lastMaterialRollback.index].floorMat = lastMaterialRollback.mat;
+                    uded.Faces[lastMaterialRollback.element.index].floorMat = lastMaterialRollback.mat;
                     break;
                 case ElementType.wall_mid:
-                    uded.Edges[lastMaterialRollback.index].midMat = lastMaterialRollback.mat;
+                    uded.Edges[lastMaterialRollback.element.index].midMat = lastMaterialRollback.mat;
                     break;
                 case ElementType.wall_upper:
-                    uded.Edges[lastMaterialRollback.index].upperMat = lastMaterialRollback.mat;
+                    uded.Edges[lastMaterialRollback.element.index].upperMat = lastMaterialRollback.mat;
                     break;
                 case ElementType.wall_lower:
-                    uded.Edges[lastMaterialRollback.index].lowerMat = lastMaterialRollback.mat;
+                    uded.Edges[lastMaterialRollback.element.index].lowerMat = lastMaterialRollback.mat;
                     break;
             }
-        }
-        public (ElementType t, int index) GetNearestLevelElement(UdedCore uded)
-        {
-            var interiors = new Dictionary<int, int>();
-            for (int i = 0; i < uded.Faces.Count; i++)
-            {
-                var fExterior = uded.Faces[i];
-                foreach (var interior in fExterior.InteriorFaces)
-                {
-                    interiors[interior] = i;
-                }
-            }
-
-            Ray ray = HandleUtility.GUIPointToWorldRay (Event.current.mousePosition);
-            var res = (t:ElementType.none, index:-1, distance:0.0);
-            for (int i = 0; i < uded.Edges.Count; i++)
-            {
-                var edge = uded.Edges[i];
-                var face = uded.Faces[edge.face];
-                var backfaceIndex = uded.GetTwin(i).face;
-                var backface = uded.Faces[backfaceIndex];
-                if (interiors.ContainsKey(backfaceIndex))
-                {
-                    backface = uded.Faces[interiors[backfaceIndex]];
-                }
-                var forward = (Vector3) uded.EdgeVertex(uded.GetTwin(i)) - (Vector3) uded.EdgeVertex(edge);
-                var forwardRot = Quaternion.LookRotation(forward);
-                var center = Vector3.Lerp(uded.EdgeVertex(edge), uded.EdgeVertex(edge.nextId), 0.5f);
-                var left = forwardRot * Vector3.left;
-                var wallPlane = new Plane(left, center);
-                // var floorPlane = new Plane(Vector3.up, new Vector3(0,face.floorHeight, 0));
-                if(Vector3.Dot(left, ray.direction)<0 && wallPlane.Raycast(ray, out var enter))
-                {
-                    var enterPoint = ray.origin+ray.direction*enter;
-                    // flatten the ray to 2d
-                    var r = new Ray2D(new Vector2(ray.origin.x, ray.origin.z),
-                        new Vector2(ray.direction.x, ray.direction.z));
-                    if (enterPoint.y > face.ceilingHeight || enterPoint.y < face.floorHeight)
-                    {
-                        continue;
-                    }
-                    var seg = ElementType.wall_mid;
-                    if (!backface.clockwise)
-                    {
-                        if (backface.floorHeight > face.floorHeight && enterPoint.y < backface.floorHeight
-                            || backface.floorHeight > face.floorHeight && enterPoint.y < backface.floorHeight)
-                        {
-                            seg = ElementType.wall_lower;
-                        }
-                        else if (backface.ceilingHeight < face.ceilingHeight && enterPoint.y > backface.ceilingHeight
-                            || backface.ceilingHeight > face.ceilingHeight && enterPoint.y > backface.ceilingHeight)
-                        {
-                            seg = ElementType.wall_upper;
-                        }
-                        else
-                        {
-                            continue;
-                        }
-                    }
-
-                    var intersectionDistance = UdedCore.RayLineIntersection(r, uded.EdgeVertex(edge), uded.EdgeVertex(uded.GetTwin(i)));
-                    if (intersectionDistance != null)
-                    {
-                        // bias towards grabbing verts
-                        var vertGrabDisance = HandleUtility.GetHandleSize(enterPoint)*0.12f;
-                        var vertADistance = (uded.EdgeVertex(edge) - (r.origin + r.direction * intersectionDistance)).Value.magnitude;
-                        if (vertADistance < vertGrabDisance && res.t == ElementType.none || vertADistance < res.distance)
-                        {
-                            startPosition = enterPoint;
-                            res.t = ElementType.vertex;
-                            res.index = i;
-                            res.distance = vertADistance;
-                        }
-                        else if (res.t == ElementType.none || enter < res.distance)
-                        {
-                            res.t = seg;
-                            res.index = i;
-                            res.distance = enter;
-                        }
-                    }
-                }
-            }
-            // test the floors / ceilings
-            for (int i = 0; i < uded.Faces.Count; i++)
-            {
-                var face = uded.Faces[i];
-                if(face.clockwise)
-                    continue;
-                // test floor
-                var floorPlane = new Plane(Vector3.up, new Vector3(0,face.floorHeight, 0));
-                if(Vector3.Dot(floorPlane.normal, ray.direction) < 0 && floorPlane.Raycast(ray, out var enter))
-                {
-                    var enterPoint = ray.origin+ray.direction*enter;
-                    var enterPoint2d = new Vector2(enterPoint.x, enterPoint.z);
-                    bool isInInterior = false;
-                    foreach (var interiorFaceIndex in face.InteriorFaces)
-                    {
-                        // need to get the flipped face so the point in face works correctly
-                        if (uded.PointInFace(enterPoint2d, interiorFaceIndex))
-                        {
-                            isInInterior = true;
-                            break;
-                        }
-                    }
-                    if (!isInInterior && uded.PointInFace(enterPoint2d, i))
-                    {
-                        if(enter < res.distance || res.t == ElementType.none)
-                        {
-                            res.t = ElementType.floor;
-                            res.index = i;
-                            res.distance = enter;
-                        }
-                    }
-                }
-                // test ceiling
-                var ceilingPlane = new Plane(-Vector3.up, new Vector3(0,face.ceilingHeight, 0));
-                ray = HandleUtility.GUIPointToWorldRay (Event.current.mousePosition);
-                if(Vector3.Dot(ceilingPlane.normal, ray.direction) < 0 && ceilingPlane.Raycast(ray, out enter))
-                {
-                    var enterPoint = ray.origin+ray.direction*enter;
-                    var enterPoint2d = new Vector2(enterPoint.x, enterPoint.z);
-                    bool isInInterior = false;
-                    foreach (var interiorFaceIndex in face.InteriorFaces)
-                    {
-                        // need to get the flipped face so the point in face works correctly
-                        if (uded.PointInFace(enterPoint2d, interiorFaceIndex))
-                        {
-                            isInInterior = true;
-                            break;
-                        }
-                    }
-                    if (!isInInterior && uded.PointInFace(enterPoint2d, i))
-                    {
-                        if(enter < res.distance || res.t == ElementType.none)
-                        {
-                            res.t = ElementType.ceiling;
-                            res.index = i;
-                            res.distance = enter;
-                        }
-                    }
-                }
-            }
-            return (res.t, res.index);
         }
         private static void DisplayDebug(UdedCore uded)
         {
