@@ -2,6 +2,7 @@
 using UnityEditor;
 using UnityEditor.EditorTools;
 using UnityEngine;
+using UnityEngine.Rendering.VirtualTexturing;
 
 namespace Uded
 {
@@ -9,13 +10,15 @@ namespace Uded
     [EditorTool("Add Line", typeof(UdedCore))]
     public class LineTool : EditorTool
     {
-        private List<Vector3> linePoints = new List<Vector3>();
+        private List<Vector3> linePoints = new();
         GUIContent m_IconContent;
 
         [SerializeField] Texture2D m_ToolIcon;
 
         public override GUIContent toolbarIcon => m_IconContent;
         private float pickingPlaneHeight = 0;
+        public override bool gridSnapEnabled => true;
+
         void OnEnable()
         {
             ToolManager.activeToolChanged += ActiveToolDidChange;
@@ -37,6 +40,7 @@ namespace Uded
         {
             if (!ToolManager.IsActiveTool(this))
                 return;
+            linePoints.Clear();
         }
 
         public override void OnToolGUI(EditorWindow window)
@@ -54,6 +58,7 @@ namespace Uded
             }
 
             var uded = target as UdedCore;
+            var worldSpaceEdges = UdedEditorUtility.GetWorldSpaceEdges(uded);
             if (UdedEditorUtility.GetNearestFace(uded, out var res))
             {
                 var face = uded.Faces[res.index];
@@ -69,16 +74,41 @@ namespace Uded
             if (new Plane(Vector3.up, Vector3.up*pickingPlaneHeight).Raycast(ray, out rayEnter))
             {
                 var intersectionPoint = ray.GetPoint(rayEnter); // SnapControl.SnapToGrid(ray.GetPoint(rayEnter));
+                bool foundSnap = false;
                 // snap to nearby verts that are in the current point list
                 foreach (var linePoint in linePoints)
                 {
-                    float snapSize = HandleUtility.GetHandleSize(intersectionPoint) * 0.08f;
+                    float snapSize = HandleUtility.GetHandleSize(intersectionPoint) * 0.1f;
                     if (Vector3.Distance(intersectionPoint, linePoint) < snapSize)
                     {
                         intersectionPoint = linePoint;
+                        foundSnap = true;
                     }
                 }
-                Handles.DrawSolidDisc(intersectionPoint, Vector3.up, 0.1f);
+                // snap to nearby worldspace edges
+                foreach (var edge in worldSpaceEdges)
+                {
+                    var edgeRay = new Ray(edge.Item1, (edge.Item2 - edge.Item1).normalized);
+                    if (UdedEditorUtility.PointOnRay(ray, edgeRay, out var distanceOnRay1, out var distanceOnRay2))
+                    {
+                        var distanceClamped = Mathf.Clamp(distanceOnRay2, 0, Vector3.Distance(edge.Item1, edge.Item2));
+                        var pointOnLine = edgeRay.GetPoint(distanceClamped);
+                        float snapSize = HandleUtility.GetHandleSize(pointOnLine) * 0.1f;
+                        if (Vector3.Distance(pointOnLine, ray.GetPoint(distanceOnRay1)) < snapSize)
+                        {
+                            Handles.DrawLine(edge.Item1, edge.Item2);
+                            intersectionPoint = pointOnLine;
+                            foundSnap = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (EditorSnapSettings.gridSnapActive && !foundSnap)
+                {                
+                    intersectionPoint = SnapControl.SnapToGrid(ray.GetPoint(rayEnter));
+                }
+                Handles.DrawWireDisc(intersectionPoint, Vector3.up, HandleUtility.GetHandleSize(intersectionPoint)*0.1f);
                 var defaultID = GUIUtility.GetControlID(FocusType.Keyboard, dragArea);
                 HandleUtility.AddDefaultControl(defaultID);
                 if (evt.type == EventType.MouseDown && evt.button == 0)
@@ -102,13 +132,16 @@ namespace Uded
 
                 if (evt.type == EventType.Repaint && linePoints.Count > 0)
                 {
+                    for (int i = 0; i < linePoints.Count; i++)
+                    {
+                        Handles.DrawWireDisc(linePoints[i], Vector3.up, HandleUtility.GetHandleSize(linePoints[i])*0.1f);
+                    }
                     for (int i = 0; i < linePoints.Count - 1; i++)
                     {
                         var firstPoint = linePoints[i];
                         var secondPoint = linePoints[i + 1];
                         Handles.DrawLine(firstPoint, secondPoint);
                     }
-
                     Handles.DrawLine(linePoints[linePoints.Count - 1], intersectionPoint);
                 }
             }

@@ -47,6 +47,44 @@ namespace Uded
             return false;
         }
 
+        public static List<(Vector3, Vector3)> GetWorldSpaceEdges(UdedCore uded)
+        {
+            var res = new List<(Vector3, Vector3)>();
+            var interiors = new Dictionary<int, int>();
+            for (int i = 0; i < uded.Faces.Count; i++)
+            {
+                var fExterior = uded.Faces[i];
+                foreach (var interior in fExterior.InteriorFaces)
+                {
+                    interiors[interior] = i;
+                }
+            }
+            for (int i = 0; i < uded.Edges.Count; i++)
+            { 
+                var edge = uded.Edges[i];
+                var face = uded.Faces[edge.face];
+                var backfaceIndex = uded.GetTwin(i).face;
+                var backface = uded.Faces[backfaceIndex];
+                if (interiors.ContainsKey(backfaceIndex))
+                {
+                    backface = uded.Faces[interiors[backfaceIndex]];
+                }
+                var a = uded.EdgeVertex(edge);
+                var b = uded.EdgeVertex(uded.GetTwin(i));
+                var floorPosition = Vector3.up * face.floorHeight;
+                var ceilingPosition = Vector3.up * face.ceilingHeight;
+                if (!backface.clockwise)
+                {
+                    floorPosition = Vector3.up * backface.floorHeight;
+                    ceilingPosition = Vector3.up * backface.ceilingHeight;
+                }
+                res.Add((a+floorPosition, b+floorPosition));
+                res.Add((a+ceilingPosition, b+ceilingPosition));
+            }
+
+            return res;
+        }
+        
         public static PickingElement GetNearestLevelElement(UdedCore uded)
         {
             var interiors = new Dictionary<int, int>();
@@ -107,7 +145,6 @@ namespace Uded
                 var center = Vector3.Lerp(uded.EdgeVertex(edge), uded.EdgeVertex(edge.nextId), 0.5f);
                 var left = forwardRot * Vector3.left;
                 var wallPlane = new Plane(left, center);
-                // var floorPlane = new Plane(Vector3.up, new Vector3(0,face.floorHeight, 0));
                 if(Vector3.Dot(left, ray.direction)<0 && wallPlane.Raycast(ray, out var enter))
                 {
                     var enterPoint = ray.origin+ray.direction*enter;

@@ -18,7 +18,9 @@ namespace Uded
         {
             floorHeight = copyFrom.floorHeight;
             ceilingHeight = copyFrom.ceilingHeight;
-            InteriorFaces = new List<int>(copyFrom.InteriorFaces);
+            floorMat = copyFrom.floorMat;
+            ceilingMat = copyFrom.ceilingMat;
+            // InteriorFaces = new List<int>(copyFrom.InteriorFaces);
         }
     }
     [Serializable]

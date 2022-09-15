@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using TriangleNet.Geometry;
+using UnityEditor.Graphs;
 using UnityEngine.Analytics;
 
 // alternately could use this
@@ -12,8 +13,17 @@ namespace Uded
 	{
 		private float multiplier = 10000;
 		private static List<List<int>> wallIndexes = new();
-		private static List<Material> resMats = new(); 
+		private static List<Material> resMats = new();
 
+		private static Vector3 Vector2To3(Vector2 v)
+		{
+			return new(v.x, 0, v.y);
+		}
+
+		private static void DebugPoint(Vector2 v, Color c)
+		{
+			Debug.DrawRay(Vector2To3(v)+Random.onUnitSphere*0.1f, Vector3.up, c, 0.01f);
+		}
 		public static (Mesh mesh, Material[] wallMaterials) GetMeshFromFace(int faceIndex, UdedCore uded, List<Uded.HalfEdge> edges, List<Uded.Face> faces)
 		{
 			resMats.Clear();
@@ -61,10 +71,14 @@ namespace Uded
 					var interiorEdge = edges[interiorFace.Edges[edgeIndex]];
 					var pointA = uded.EdgeVertex(interiorEdge);
 					var pointB = uded.EdgeVertex(uded.GetTwin(interiorFace.Edges[edgeIndex]));
-					var pointC = uded.EdgeVertex(interiorEdge.nextId);
+					var pointC = uded.EdgeVertex(interiorEdge.prevId);
+					// DebugPoint(pointA, Color.magenta);
+					// DebugPoint(pointB, Color.cyan);
+					// DebugPoint(pointC, Color.blue);
 					var midpoint = (pointA._value+pointB._value+pointC._value)/3.0f;
 					if (uded.PointInFace(midpoint, face.InteriorFaces[i]))
 					{
+						// DebugPoint(midpoint, Color.yellow);
 						input.AddHole(midpoint.x, midpoint.y);
 						break;
 					}

@@ -190,8 +190,29 @@ namespace Uded
             {
                 Faces.Add(face);
             }
-            
+
+            var facesToTestIfInteriors = new HashSet<int>();
             for (int testingFaceIndex = newFaceStart; testingFaceIndex < Faces.Count; testingFaceIndex++)
+            {
+                facesToTestIfInteriors.Add(testingFaceIndex);
+            }
+            
+            // if any faces lost all their edges, but have interiors, add their former interiors to the test list
+            // these faces should be cleaned up and everything should be reindexed... but thats more work. lets waste memory.
+            foreach (var face in Faces)
+            {
+                if (face.Edges.Count == 0)
+                {
+                    foreach (var interiorFace in face.InteriorFaces)
+                    {
+                        if(Faces[interiorFace].Edges.Count != 0)
+                            facesToTestIfInteriors.Add(interiorFace);
+                    }
+                    face.InteriorFaces.Clear();
+                }
+            }
+            
+            foreach (var testingFaceIndex in facesToTestIfInteriors)
             {
                 var face = Faces[testingFaceIndex];
                 // if this is an outward facing edge

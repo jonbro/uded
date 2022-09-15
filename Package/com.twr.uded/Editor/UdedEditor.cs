@@ -45,6 +45,11 @@ namespace Uded
                 return;
             if (uded.displayDebug)
                 DisplayDebug(uded);
+            // bail out early if we are using one of the other tools
+            if (ToolManager.activeToolType == typeof(RectTool) || ToolManager.activeToolType == typeof(LineTool))
+            {
+                return;
+            }
             // highlight the currently hovered wall
             var nearest = UdedEditorUtility.GetNearestLevelElement(uded);
             Event evt = Event.current;
