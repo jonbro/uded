@@ -38,31 +38,37 @@ namespace Uded
 					EdgeMarker);
 				indexMarker++;
 			}
-
 			for (int i = 0; i < face.InteriorFaces.Count; i++)
 			{
 				var interiorFace = faces[face.InteriorFaces[i]];
 				startIndexMark = input.Count;
-				float avgX = 0;
-				float avgY = 0;
 				EdgeMarker++;
 				for (int edgeIndex = 0; edgeIndex < interiorFace.Edges.Count; edgeIndex++)
 				{
 					var interiorEdge = edges[interiorFace.Edges[edgeIndex]];
+					// add segments to the input (defining the interior shape)
 					Vector2 nextPoint = uded.EdgeVertex(interiorEdge);
 					input.AddPoint(nextPoint.x, nextPoint.y, EdgeMarker);
-					avgX += nextPoint.x;
-					avgY += nextPoint.y;
 					var p1 = ((indexMarker - startIndexMark + 1) % interiorFace.Edges.Count + startIndexMark);
 					input.AddSegment(indexMarker, p1,
 						EdgeMarker);
 					indexMarker++;
 				}
-				avgX = avgX / interiorFace.Edges.Count;
-				avgY = avgY / interiorFace.Edges.Count;
-				// TODO: should use the first triangle within the interior face to define the hole position
-				// this can miss for shapes with concavities 
-				input.AddHole(avgX, avgY);
+				// look through all the pairs of edges until we find a point that is within the shape
+				// there must be at least one acute angle in the shape, and the midpoint between its verts will be within the shape
+				for (int edgeIndex = 0; edgeIndex < interiorFace.Edges.Count; edgeIndex++)
+				{
+					var interiorEdge = edges[interiorFace.Edges[edgeIndex]];
+					var pointA = uded.EdgeVertex(interiorEdge);
+					var pointB = uded.EdgeVertex(uded.GetTwin(interiorFace.Edges[edgeIndex]));
+					var pointC = uded.EdgeVertex(interiorEdge.nextId);
+					var midpoint = (pointA._value+pointB._value+pointC._value)/3.0f;
+					if (uded.PointInFace(midpoint, face.InteriorFaces[i]))
+					{
+						input.AddHole(midpoint.x, midpoint.y);
+						break;
+					}
+				}
 			}
 
 
