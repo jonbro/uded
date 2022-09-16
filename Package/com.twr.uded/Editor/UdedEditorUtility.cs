@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
 
@@ -11,6 +10,8 @@ namespace Uded
         public int index;
         public Vector3 PickPoint;
         public float Distance;
+        public Vector3 worldSpaceA;
+        public Vector3 worldSpaceB;
     }
     public enum ElementType
     {
@@ -81,8 +82,85 @@ namespace Uded
                 res.Add((a+floorPosition, b+floorPosition));
                 res.Add((a+ceilingPosition, b+ceilingPosition));
             }
-
             return res;
+        }
+        public static List<(int, Vector3, Vector3)> GetWorldSpaceVertexLines(UdedCore uded)
+        {
+            var res = new List<(int, Vector3, Vector3)>();
+            var interiors = new Dictionary<int, int>();
+            for (int i = 0; i < uded.Faces.Count; i++)
+            {
+                var fExterior = uded.Faces[i];
+                foreach (var interior in fExterior.InteriorFaces)
+                {
+                    interiors[interior] = i;
+                }
+            }
+            for (int i = 0; i < uded.Edges.Count; i++)
+            { 
+                var edge = uded.Edges[i]; 
+                var face = uded.Faces[edge.face];
+                if(face.clockwise)
+                    continue;
+                var backfaceIndex = uded.GetTwin(i).face;
+                var backface = uded.Faces[backfaceIndex];
+                if (interiors.ContainsKey(backfaceIndex))
+                {
+                    backface = uded.Faces[interiors[backfaceIndex]];
+                }
+                var a = uded.EdgeVertex(edge);
+                var floorPosition = Vector3.up * face.floorHeight;
+                var ceilingPosition = Vector3.up * face.ceilingHeight;
+                if (!backface.clockwise)
+                {
+                    ceilingPosition = Vector3.up * backface.floorHeight;
+                    res.Add((i, a+floorPosition, a+ceilingPosition));
+                    // reset
+                    ceilingPosition = Vector3.up * face.ceilingHeight;
+                    floorPosition = Vector3.up * backface.ceilingHeight;
+                    res.Add((i, a+floorPosition, a+ceilingPosition));
+                }
+                else
+                {
+                    res.Add((i, a+floorPosition, a+ceilingPosition));
+                }
+            }
+            return res;
+        }
+
+        public static bool GetNearestEdge(UdedCore uded, out PickingElement res)
+        {
+            Ray ray = HandleUtility.GUIPointToWorldRay (Event.current.mousePosition);
+            res = new PickingElement
+            {
+                t = ElementType.none
+            };
+
+            foreach (var vertLine in GetWorldSpaceVertexLines(uded))
+            {
+                var edgeRay = new Ray(vertLine.Item2, (vertLine.Item3 - vertLine.Item2).normalized);
+                if (PointOnRay(ray, edgeRay, out var distanceOnRay1, out var distanceOnRay2))
+                {
+                    var distanceClamped = Mathf.Clamp(distanceOnRay2, 0, Vector3.Distance(vertLine.Item3, vertLine.Item2));
+                    var pointOnLine = edgeRay.GetPoint(distanceClamped);
+                    float snapSize = HandleUtility.GetHandleSize(pointOnLine) * 0.1f;
+                    float distanceToVert = Vector3.Distance(ray.origin, pointOnLine);
+                    if (Vector3.Distance(pointOnLine, ray.GetPoint(distanceOnRay1)) < snapSize)
+                    {
+                        Handles.DrawWireDisc(pointOnLine, ray.direction, snapSize);
+                        if (res.t == ElementType.none || distanceToVert < res.Distance)
+                        {
+                            res.t = ElementType.vertex;
+                            res.index = vertLine.Item1;
+                            res.PickPoint = pointOnLine;
+                            res.Distance = distanceToVert;
+                            res.worldSpaceA = vertLine.Item2;
+                            res.worldSpaceB = vertLine.Item3;
+                        }
+                    }
+                }
+            }
+            return res.t == ElementType.vertex;
         }
         
         public static PickingElement GetNearestLevelElement(UdedCore uded)
@@ -103,29 +181,9 @@ namespace Uded
                 index=-1,
                 Distance=0.0f
             };
-            var testedVert = new HashSet<int>();
-            for (int i = 0; i < uded.Edges.Count; i++)
+            if (GetNearestEdge(uded, out var e))
             {
-                var edge = uded.Edges[i];
-                if(testedVert.Contains(edge.vertexIndex))
-                    continue;
-                testedVert.Add(edge.vertexIndex);
-                var vertPoint = new Ray(uded.EdgeVertex(i), Vector3.up);
-                if (PointOnRay(ray, vertPoint, out var r1, out var r2))
-                {
-                    var pointOnEdge = vertPoint.origin + vertPoint.direction * r2;
-                    var size = HandleUtility.GetHandleSize(pointOnEdge)*0.05f;
-                    var screenToPickDistance = Vector3.Distance(pointOnEdge, ray.origin);
-                    var screenRayNearestPoint = ray.origin + ray.direction * r1;
-                    var distanceToVert = Vector3.Distance(screenRayNearestPoint, pointOnEdge);
-                    if (distanceToVert < size && res.t == ElementType.none || screenToPickDistance < res.Distance)
-                    {
-                        res.t = ElementType.vertex;
-                        res.index = i;
-                        res.PickPoint = screenRayNearestPoint;
-                        res.Distance = distanceToVert;
-                    }
-                }
+                res = e;
             }
             // return early if we found a vert hit
             if (res.t == ElementType.vertex)

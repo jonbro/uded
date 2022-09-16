@@ -1,12 +1,12 @@
 ﻿using System.Collections.Generic;
 using UnityEditor;
 using UnityEditor.EditorTools;
+using UnityEditor.ShortcutManagement;
 using UnityEngine;
 using UnityEngine.Rendering.VirtualTexturing;
 
 namespace Uded
 {
-
     [EditorTool("Add Line", typeof(UdedCore))]
     public class LineTool : EditorTool
     {
@@ -42,7 +42,15 @@ namespace Uded
                 return;
             linePoints.Clear();
         }
-
+        
+        [Shortcut("Uded/Line Tool", typeof(SceneView), KeyCode.A)]
+        static public void StartLineTool()
+        {
+            if (Selection.objects[0] is GameObject go && go.GetComponent<UdedCore>())
+            {
+                ToolManager.SetActiveTool(typeof(LineTool));
+            }
+        }
         public override void OnToolGUI(EditorWindow window)
         {
             var sceneView = window as SceneView;
@@ -59,6 +67,14 @@ namespace Uded
 
             var uded = target as UdedCore;
             var worldSpaceEdges = UdedEditorUtility.GetWorldSpaceEdges(uded);
+            var worldSpaceVertexLines = UdedEditorUtility.GetWorldSpaceVertexLines(uded);
+            foreach (var edge in worldSpaceVertexLines)
+            {
+                Vector3 offset = Random.insideUnitSphere*0.01f;
+                offset.y = 0;
+                Handles.DrawLine(edge.Item2+offset, edge.Item3+offset);
+            }
+
             if (UdedEditorUtility.GetNearestFace(uded, out var res))
             {
                 var face = uded.Faces[res.index];
@@ -105,8 +121,8 @@ namespace Uded
                 }
 
                 if (EditorSnapSettings.gridSnapActive && !foundSnap)
-                {                
-                    intersectionPoint = SnapControl.SnapToGrid(ray.GetPoint(rayEnter));
+                {
+                    intersectionPoint = Snapping.Snap(ray.GetPoint(rayEnter), EditorSnapSettings.gridSize);
                 }
                 Handles.DrawWireDisc(intersectionPoint, Vector3.up, HandleUtility.GetHandleSize(intersectionPoint)*0.1f);
                 var defaultID = GUIUtility.GetControlID(FocusType.Keyboard, dragArea);
@@ -167,7 +183,6 @@ namespace Uded
                     new Uded.Vertex(firstPoint.x, firstPoint.z),
                     new Uded.Vertex(secondPoint.x, secondPoint.z));
             }
-
             linePoints.Clear();
             uded.Rebuild();
         }

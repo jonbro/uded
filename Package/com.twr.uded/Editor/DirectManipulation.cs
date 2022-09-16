@@ -12,7 +12,7 @@ namespace Uded
         private static Vector2 StartPositionVert, StartPositionVert2;
         private static float startPositionHeight;
         private static bool s_IsDragging;
-        private static PickingElement element;
+        public static PickingElement element;
         private static UdedCore uded;
         private static Vector2 mouseStart;
         public static bool IsDragging => s_IsDragging;

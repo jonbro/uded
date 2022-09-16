@@ -46,7 +46,7 @@ namespace Uded
             if (uded.displayDebug)
                 DisplayDebug(uded);
             // bail out early if we are using one of the other tools
-            if (ToolManager.activeToolType == typeof(RectTool) || ToolManager.activeToolType == typeof(LineTool))
+            if (ToolManager.activeToolType == typeof(LineTool))
             {
                 return;
             }
@@ -56,10 +56,8 @@ namespace Uded
             if (nearest.t is ElementType.vertex)
             {
                 Handles.color = Color.green;
-                var edge = uded.Edges[nearest.index];
-                var face = uded.Faces[edge.face];
-                var thisVert = uded.EdgeVertex(edge);
-                Handles.DrawLine(thisVert+Vector3.up*face.floorHeight, thisVert+Vector3.up*face.ceilingHeight);
+                Handles.DrawLine(nearest.worldSpaceA, nearest.worldSpaceB);
+                SceneView.RepaintAll();
             }
             else if (nearest.t is ElementType.wall_lower or ElementType.wall_mid or ElementType.wall_upper)
             {
@@ -100,8 +98,9 @@ namespace Uded
                 }
             }
 
-            if (ToolManager.activeToolType != typeof(RectTool) && ToolManager.activeToolType != typeof(LineTool) && evt.type == EventType.MouseDown && evt.button == 0)
+            if (ToolManager.activeToolType != typeof(LineTool) && evt.type == EventType.MouseDown && evt.button == 0)
             {
+                Undo.RegisterCompleteObjectUndo(uded, "Move " + nearest.t);
                 DirectManipulation.StartDrag(uded, nearest);
                 evt.Use();
             }
@@ -110,63 +109,98 @@ namespace Uded
                 _lastMaterialRollback.element = default;
             }
 
-            if (DragAndDrop.objectReferences.Length == 1 &&
-                DragAndDrop.objectReferences[0].GetType() == typeof(Material))
+            if (DragAndDrop.objectReferences.Length == 1)
             {
-                var mat = DragAndDrop.objectReferences[0] as Material;
-                // determine if there is a wall under our cursor
-                DragAndDrop.visualMode = DragAndDropVisualMode.Copy;
-                DragAndDrop.AcceptDrag();
-                if (nearest.t == ElementType.none)
+                Debug.Log("drag drop event");
+                ApplyDragDropMaterial(nearest, uded);
+            }
+        }
+
+        private void ApplyDragDropMaterial(PickingElement nearest, UdedCore uded)
+        {
+            Material mat;
+            if (DragAndDrop.objectReferences[0] is Material m)
+            {
+                mat = m;
+            }
+            else if (DragAndDrop.objectReferences[0] is Texture t)
+            {
+                if (uded.TextureMats.ContainsKey(t))
                 {
-                    RollbackMaterialChange(uded);
-                    _lastMaterialRollback.element = new PickingElement();
-                    uded.Rebuild();
+                    mat = uded.TextureMats[t];
                 }
-                if (nearest.t == ElementType.ceiling)
+                else
                 {
-                    // run rollback on the last change
-                    RollbackMaterialChange(uded);
-                    _lastMaterialRollback.element = nearest;
-                    _lastMaterialRollback.mat = uded.Faces[nearest.index].ceilingMat;
-                    uded.Faces[nearest.index].ceilingMat = mat;
-                    uded.Rebuild();
+                    mat = new Material(Shader.Find("Standard"));
+                    mat.mainTexture = t;
+                    uded.TextureMats[t] = mat;
                 }
-                if (nearest.t == ElementType.floor)
-                {
-                    RollbackMaterialChange(uded);
-                    _lastMaterialRollback.element = nearest;
-                    _lastMaterialRollback.mat = uded.Faces[nearest.index].floorMat;
-                    uded.Faces[nearest.index].floorMat = mat;
-                    uded.Rebuild();
-                }
-                if (nearest.t == ElementType.wall_mid)
-                {
-                    RollbackMaterialChange(uded);
-                    _lastMaterialRollback.element = nearest;
-                    _lastMaterialRollback.mat = uded.Edges[nearest.index].midMat;
-                    uded.Edges[nearest.index].midMat = mat;
-                    // todo: add a rebuild that only reconstructs the material array
-                    uded.Rebuild();
-                }
-                if (nearest.t == ElementType.wall_upper)
-                {
-                    RollbackMaterialChange(uded);
-                    _lastMaterialRollback.element = nearest;
-                    _lastMaterialRollback.mat = uded.Edges[nearest.index].upperMat;
-                    uded.Edges[nearest.index].upperMat = mat;
-                    // todo: add a rebuild that only reconstructs the material array
-                    uded.Rebuild();
-                }
-                if (nearest.t == ElementType.wall_lower)
-                {
-                    RollbackMaterialChange(uded);
-                    _lastMaterialRollback.element = nearest;
-                    _lastMaterialRollback.mat = uded.Edges[nearest.index].lowerMat;
-                    uded.Edges[nearest.index].lowerMat = mat;
-                    // todo: add a rebuild that only reconstructs the material array
-                    uded.Rebuild();
-                }
+            }
+            else
+            {
+                return;
+            }
+
+            // determine if there is a wall under our cursor
+            Vector3 mousePosition = Event.current.mousePosition;
+            
+            if (!SceneView.currentDrawingSceneView.camera.pixelRect.Contains(HandleUtility.GUIPointToScreenPixelCoordinate(new Vector2(mousePosition.x, mousePosition.y))) || nearest.t == ElementType.none)
+            {
+                RollbackMaterialChange(uded);
+                _lastMaterialRollback.element = new PickingElement();
+                uded.Rebuild();
+                return;
+            }
+            DragAndDrop.visualMode = DragAndDropVisualMode.Copy;
+            DragAndDrop.AcceptDrag();
+
+            if (nearest.t == ElementType.ceiling)
+            {
+                // run rollback on the last change
+                RollbackMaterialChange(uded);
+                _lastMaterialRollback.element = nearest;
+                _lastMaterialRollback.mat = uded.Faces[nearest.index].ceilingMat;
+                uded.Faces[nearest.index].ceilingMat = mat;
+                uded.Rebuild();
+            }
+
+            if (nearest.t == ElementType.floor)
+            {
+                RollbackMaterialChange(uded);
+                _lastMaterialRollback.element = nearest;
+                _lastMaterialRollback.mat = uded.Faces[nearest.index].floorMat;
+                uded.Faces[nearest.index].floorMat = mat;
+                uded.Rebuild();
+            }
+
+            if (nearest.t == ElementType.wall_mid)
+            {
+                RollbackMaterialChange(uded);
+                _lastMaterialRollback.element = nearest;
+                _lastMaterialRollback.mat = uded.Edges[nearest.index].midMat;
+                uded.Edges[nearest.index].midMat = mat;
+                // todo: add a rebuild that only reconstructs the material array
+                uded.Rebuild();
+            }
+
+            if (nearest.t == ElementType.wall_upper)
+            {
+                RollbackMaterialChange(uded);
+                _lastMaterialRollback.element = nearest;
+                _lastMaterialRollback.mat = uded.Edges[nearest.index].upperMat;
+                uded.Edges[nearest.index].upperMat = mat;
+                // todo: add a rebuild that only reconstructs the material array
+                uded.Rebuild();
+            }
+
+            if (nearest.t == ElementType.wall_lower)
+            {
+                RollbackMaterialChange(uded);
+                _lastMaterialRollback.element = nearest;
+                _lastMaterialRollback.mat = uded.Edges[nearest.index].lowerMat;
+                uded.Edges[nearest.index].lowerMat = mat;
+                // todo: add a rebuild that only reconstructs the material array
+                uded.Rebuild();
             }
         }
 

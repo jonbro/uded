@@ -1,7 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using UnityEditor.Graphs;
 using UnityEngine;
 using UnityEditor;
 
@@ -10,17 +8,20 @@ namespace Uded
     [ExecuteInEditMode]
     [Serializable]
 
-    public class UdedCore : MonoBehaviour
+    public class UdedCore : MonoBehaviour, ISerializationCallbackReceiver
     {
         public Material FloorMat;
         public Material CeilingMat;
         public Material WallMat;
-        public List<Vertex> Vertexes = new List<Vertex>();
-        public List<HalfEdge> Edges = new List<HalfEdge>();
-        public List<Face> Faces = new List<Face>();
+        public List<Vertex> Vertexes = new();
+        public List<HalfEdge> Edges = new();
+        public List<Face> Faces = new();
         public bool displayDebug;
-        public bool displayEdges;
-        public List<GameObject> childObjects = new List<GameObject>();
+        public List<GameObject> childObjects = new();
+        [SerializeField] private List<Texture> texturematkeys = new ();
+        [SerializeField] private List<Material> texturematvalues = new();
+        public Dictionary<Texture, Material> TextureMats = new();
+        
         public void OnEnable()
         {
             Rebuild();
@@ -34,7 +35,7 @@ namespace Uded
         void MyUndoCallback()
         {
             // code for the action to take on Undo
-            RemoveAllFacesAndMeshes();
+            RemoveAllMeshes();
             Rebuild();
         }
 
@@ -76,16 +77,11 @@ namespace Uded
             Debug.DrawLine(Vertexes[Edges[edgeIndex].vertexIndex], Vertexes[GetTwin(edgeIndex).vertexIndex], color, duration);
         }
 
-        public void RemoveAllFacesAndMeshes()
+        public void RemoveAllMeshes()
         {
             for (int i = transform.childCount-1; i>=0; i--)
             {
                 DestroyImmediate(transform.GetChild(i).gameObject);
-            }
-            Faces.Clear();
-            foreach (var edge in Edges)
-            {
-                edge.face = -1;
             }
         }
         public void Rebuild()
@@ -112,6 +108,7 @@ namespace Uded
 
                 visitedEdges.Add(nextEdge);
                 var firstEdge = nextEdge;
+                Debug.Log("adding face");
                 var face = new Face();
                 newFaces.Add(face);
                 var sideSum = 0f;
@@ -312,7 +309,7 @@ namespace Uded
                 }
                 go.AddComponent<MeshRenderer>().sharedMaterials = mats.ToArray();
                 
-                go.hideFlags = HideFlags.HideAndDontSave;
+                go.hideFlags = HideFlags.HideInHierarchy;
                 childObjects.Add(go);
             }
         }
@@ -610,6 +607,61 @@ namespace Uded
             Vertex a = new Vector2(ax, ay);
             Vertex b = new Vector2(bx, by);
             AddLine(a,b);
+        }
+        private void CleanupUnusedMaterials()
+        {
+            var usedMaterials = new HashSet<Material>();
+            foreach (var face in Faces)
+            {
+                usedMaterials.Add(face.ceilingMat);
+                usedMaterials.Add(face.floorMat);
+            }
+
+            foreach (var edge in Edges)
+            {
+                usedMaterials.Add(edge.lowerMat);
+                usedMaterials.Add(edge.midMat);
+                usedMaterials.Add(edge.upperMat);
+            }
+
+            var toRemove = new HashSet<Texture>();
+            foreach (var kvp in TextureMats)
+            {
+                if (!usedMaterials.Contains(kvp.Value))
+                {
+                    toRemove.Add(kvp.Key);
+                }
+            }
+
+            foreach (var texture in toRemove)
+            {
+                var m = TextureMats[texture];
+                TextureMats.Remove(texture);
+                DestroyImmediate(m);
+            }
+        }
+
+        public void OnBeforeSerialize()
+        {
+            // before saving, cleanup unused materials
+            CleanupUnusedMaterials();
+            texturematkeys.Clear();
+            texturematvalues.Clear();
+            foreach (var kvp in TextureMats)
+            {
+                texturematkeys.Add(kvp.Key);
+                texturematvalues.Add(kvp.Value);
+            }
+        }
+
+
+        public void OnAfterDeserialize()
+        {
+            TextureMats.Clear();
+            for (int i = 0; i < texturematkeys.Count; i++)
+            {
+                TextureMats[texturematkeys[i]] = texturematvalues[i];
+            }
         }
     }
 }
